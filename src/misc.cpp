@@ -5,6 +5,9 @@
 #include <iostream>
 #include <system_error>
 
+// GNU extension
+#include <cxxabi.h>
+
 #include "ce2103/network.hpp"
 
 #include "ce2103/mm/gc.hpp"
@@ -76,6 +79,23 @@ namespace ce2103::mm
 	void initialize()
 	{
 		std::call_once(initialization_flag, do_initialize);
+	}
+
+	std::string allocation::get_demangled_type_name() const
+	{
+		std::string output;
+
+		char* demangled = ::abi::__cxa_demangle(this->type.name(), nullptr, nullptr, nullptr);
+		if(demangled != nullptr)
+		{
+			output = demangled;
+			std::free(demangled);
+		} else
+		{
+			output = "(\?\?\?)";
+		}
+
+		return output;
 	}
 
 	memory_manager& memory_manager::get_default() noexcept

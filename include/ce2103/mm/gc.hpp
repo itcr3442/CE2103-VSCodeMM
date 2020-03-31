@@ -30,6 +30,8 @@ namespace ce2103::mm
 				return this->type.name();
 			}
 
+			std::string get_demangled_type_name() const;
+
 		private:
 			const std::type_info& type;
 			void (*destructor)(void* object);
