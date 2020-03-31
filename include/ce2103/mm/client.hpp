@@ -58,6 +58,8 @@ namespace ce2103::mm
 
 			virtual std::size_t drop(std::size_t id) final override;
 
+			virtual void probe(const void* address) final override;
+
 		private:
 			client_session client;
 			void*          trap_base;

@@ -62,6 +62,9 @@ namespace ce2103::mm
 			virtual std::size_t lift(std::size_t id) = 0;
 			virtual std::size_t drop(std::size_t id) = 0;
 
+			inline virtual void probe([[maybe_unused]] const void* address)
+			{}
+
 		protected:
 			inline void dispose(allocation& resource)
 			{
@@ -151,6 +154,8 @@ namespace ce2103::mm
 				static_cast<T*>(object)->~T();
 			};
 		}
+
+		this->probe(base);
 
 		auto& type = count == 1 && !always_array ? typeid(T) : typeid(T[]);
 		new(base) allocation{type, destructor, padding, sizeof(T)};

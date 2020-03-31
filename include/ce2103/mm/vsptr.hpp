@@ -101,6 +101,8 @@ namespace ce2103::mm
 				: data{data}, id{id}, owner{owner}
 				{}
 
+				T* access() const;
+
 				template<typename U, template<class> class OtherDerived>
 				Derived<T>& initialize(const ptr_base<U, OtherDerived>& other);
 
@@ -173,12 +175,12 @@ namespace ce2103::mm
 
 			inline T* operator->() const
 			{
-				return this->data;
+				return this->access();
 			}
 
 			inline T& operator*() const
 			{
-				return *this->data;
+				return *this->access();
 			}
 
 			inline T& operator&() const
@@ -224,6 +226,17 @@ namespace ce2103::mm
 		}
 
 		return Derived<T>{data, id, &owner};
+	}
+
+	template<typename T, template<class> class Derived>
+	T* _detail::ptr_base<T, Derived>::access() const
+	{
+		if(this->owner != nullptr)
+		{
+			this->owner->probe(this->data);
+		}
+
+		return this->data;
 	}
 
 	template<typename T, template<class> class Derived>

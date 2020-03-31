@@ -10,6 +10,7 @@
 #include <chrono>
 #include <thread>
 #include <cerrno>
+#include <csetjmp>
 #include <cstddef>
 #include <cassert>
 #include <optional>
@@ -108,7 +109,9 @@ namespace
 
 	void handle_segmentation_fault(int, ::siginfo_t* signal_info, void* context) noexcept;
 
-	[[return]]
+	thread_local std::jmp_buf* probe_checkpoint = nullptr;
+
+	[[noreturn]]
 	void throw_result(result which)
 	{
 		using ce2103::mm::error_code;
@@ -441,6 +444,9 @@ namespace
 				   response == result::success)
 				{
 					return;
+				} else if(probe_checkpoint != nullptr && response != result::uncaught)
+				{
+					std::longjmp(*probe_checkpoint, static_cast<int>(response));
 				}
 			}
 		} catch(...)
@@ -461,6 +467,26 @@ namespace
 
 namespace ce2103::mm
 {
+	void remote_manager::probe(const void* address)
+	{
+		std::jmp_buf checkpoint;
+
+		int response = setjmp(checkpoint);
+		if(response == 0)
+		{
+			probe_checkpoint = &checkpoint;
+
+			[[maybe_unused]]
+			char canary = *static_cast<volatile const char*>(address);
+		}
+
+		probe_checkpoint = nullptr;
+		if(response > 0 && response != static_cast<int>(result::success))
+		{
+			throw_result(static_cast<result>(response));
+		}
+	}
+
 	void remote_manager::install_trap_region()
 	{
 		this->trap_base = handler.install(this->client);

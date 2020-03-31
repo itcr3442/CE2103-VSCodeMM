@@ -10,6 +10,7 @@
 #include "ce2103/mm/gc.hpp"
 #include "ce2103/mm/init.hpp"
 #include "ce2103/mm/error.hpp"
+#include "ce2103/mm/vsptr.hpp"
 #include "ce2103/mm/client.hpp"
 
 namespace
