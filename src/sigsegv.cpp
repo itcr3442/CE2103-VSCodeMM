@@ -13,8 +13,8 @@
 #include <cstddef>
 #include <cassert>
 #include <optional>
-#include <stdexcept>
 #include <functional>
+#include <system_error>
 #include <condition_variable>
 
 #include <fcntl.h>
@@ -24,6 +24,7 @@
 #include <sys/types.h>
 
 #include "ce2103/mm/gc.hpp"
+#include "ce2103/mm/error.hpp"
 #include "ce2103/mm/client.hpp"
  
 using ce2103::mm::client_session;
@@ -55,7 +56,7 @@ namespace
 		evict
 	};
 
-	void throw_remote_failure();
+	void throw_result(result which);
 
 	class fault_handler
 	{
@@ -107,10 +108,28 @@ namespace
 
 	void handle_segmentation_fault(int, ::siginfo_t* signal_info, void* context) noexcept;
 
-	[[noreturn]]
-	void throw_remote_failure()
+	[[return]]
+	void throw_result(result which)
 	{
-		throw std::runtime_error{"Remote memory operation failed"};
+		using ce2103::mm::error_code;
+
+		error_code error;
+		switch(which)
+		{
+			case result::fetch_failure:
+				error = error_code::network_failure;
+				break;
+
+			case result::mapping_failure:
+				error = error_code::memory_error;
+				break;
+
+			default:
+				error = error_code::unknown;
+				break;
+		}
+
+		throw std::system_error{error};
 	}
 
 	fault_handler::~fault_handler()
@@ -120,7 +139,7 @@ namespace
 			if(auto result = this->process(operation::terminate, nullptr);
 			   result != result::success)
 			{
-				throw_remote_failure();
+				throw_result(result);
 			}
 
 			this->handler_thread.join();
@@ -458,7 +477,7 @@ namespace ce2103::mm
 		if(auto result = handler.process(operation::wipe, address, size);
 		   result != result::success)
 		{
-			throw_remote_failure();
+			throw_result(result);
 		}
 	}
 
@@ -468,7 +487,7 @@ namespace ce2103::mm
 		if(auto result = handler.process(operation::evict, address);
 		   result != result::success)
 		{
-			throw_remote_failure();
+			throw_result(result);
 		}
 	}
 }

@@ -6,8 +6,8 @@
 #include <cstdint>
 #include <climits>
 #include <optional>
-#include <stdexcept>
 #include <string_view>
+#include <system_error>
 
 #include "nlohmann/json.hpp"
 
@@ -15,6 +15,7 @@
 #include "ce2103/network.hpp"
 
 #include "ce2103/mm/gc.hpp"
+#include "ce2103/mm/error.hpp"
 #include "ce2103/mm/client.hpp"
 #include "ce2103/mm/session.hpp"
 
@@ -196,7 +197,7 @@ namespace ce2103::mm
 	[[noreturn]]
 	void remote_manager::throw_network_failure()
 	{
-		throw std::runtime_error{"Network failure"};
+		throw std::system_error{error_code::network_failure};
 	}
 
 	std::pair<std::size_t, void*> remote_manager::allocate(std::size_t size)
