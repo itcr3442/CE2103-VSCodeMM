@@ -138,5 +138,26 @@ namespace ce2103::mm
 				}
 			} while(modified);
 		} while(!is_last_run);
+
+		if(this->allocations.get_size() > 0)
+		{
+			std::cerr << "=== These allocations have stale references at GC termination ===\n";
+
+			for(const auto& [id, pair] : this->allocations)
+			{
+				auto [count, header] = pair;
+
+				std::cerr << "  - " << count << " reference";
+				if(count > 1)
+				{
+					std::cerr << 's';
+				}
+
+				auto type_name = header->get_demangled_type_name();
+				std::cerr << " to [" << id << ": " << type_name << "]\n";
+			}
+
+			std::cerr << "=== Memory has been leaked ===\n";
+		}
 	}
 }
