@@ -71,6 +71,8 @@ namespace ce2103::mm
 
 			void* allocation_base_for(std::size_t id) noexcept;
 
+			void wipe(std::size_t id, std::size_t size);
+
 			void evict(std::size_t id);
 	};
 }

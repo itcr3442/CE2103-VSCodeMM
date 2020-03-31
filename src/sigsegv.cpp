@@ -51,6 +51,7 @@ namespace
 		begin_read,
 		begin_write,
 		terminate,
+		wipe,
 		evict
 	};
 
@@ -63,19 +64,20 @@ namespace
 
 			void* install(client_session& client);
 
-			result process(operation action, void* address);
+			result process(operation action, void* address, std::size_t limit = 0);
 
 			void evict(void* page);
 
 		private:
 			struct transaction
 			{
-				operation type;
-				void*     address;
-				result    response;
+				operation   type;
+				void*       address;
+				std::size_t limit;
+				result      response;
 
-				inline transaction(operation type, void* address) noexcept
-				: type{type}, address{address}
+				inline transaction(operation type, void* address, std::size_t limit) noexcept
+				: type{type}, address{address}, limit{limit}
 				{}
 			};
 
@@ -176,7 +178,7 @@ namespace
 		throw std::system_error{old_errno, std::system_category()};
 	}
 
-	result fault_handler::process(operation action, void* address)
+	result fault_handler::process(operation action, void* address, std::size_t limit)
 	{
 		std::unique_lock lock{this->mutex};
 
@@ -185,7 +187,7 @@ namespace
 			return this->request == nullptr;
 		});
 
-		transaction request{action, address};
+		transaction request{action, address, limit};
 		this->request = &request;
 		this->transition.notify_all();
 
@@ -226,11 +228,17 @@ namespace
 				this->transition.wait(lock, is_pending);
 			}
 
+			bool wipe = false;
 			bool evict = false;
+
 			if(requested)
 			{
 				switch(this->request->type)
 				{
+					case operation::wipe:
+						wipe = true;
+						break;
+
 					case operation::evict:
 						evict = true;
 						break;
@@ -250,7 +258,7 @@ namespace
 				& ~(PAGE_SIZE - 1) 
 			);
 
-			bool invalidate = evict == (active == page) || page == nullptr;
+			bool invalidate = evict == (active == page) || wipe || page == nullptr;
 			if(active != nullptr)
 			{
 				std::size_t writeback_length = writeback ? length : 0;
@@ -278,17 +286,17 @@ namespace
 				} else
 				{
 					bool writable = !invalidate && writeback;
-					bool begin_write = this->request->type == operation::begin_write;
+					bool begin_write = wipe || this->request->type == operation::begin_write;
 
 					std::size_t new_length;
 					std::tie(response, new_length) = this->require
 					(
-						page, invalidate, begin_write && !writable
+						page, invalidate && !wipe, begin_write && !writable
 					);
 
 					if(new_length == 0)
 					{
-						new_length = length;
+						new_length = wipe ? this->request->limit : length;
 					}
 
 					if(response == result::success)
@@ -442,6 +450,16 @@ namespace ce2103::mm
 	void* remote_manager::allocation_base_for(std::size_t id) noexcept
 	{
 		return static_cast<char*>(this->trap_base) + PAGE_SIZE * id;
+	}
+
+	void remote_manager::wipe(std::size_t id, std::size_t size)
+	{
+		void* address = this->allocation_base_for(id);
+		if(auto result = handler.process(operation::wipe, address, size);
+		   result != result::success)
+		{
+			throw_remote_failure();
+		}
 	}
 
 	void remote_manager::evict(std::size_t id)

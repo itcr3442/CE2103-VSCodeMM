@@ -207,6 +207,7 @@ namespace ce2103::mm
 			throw_network_failure();
 		}
 
+		this->wipe(*id, size);
 		return std::make_pair(*id, this->allocation_base_for(*id));
 	}
 }
