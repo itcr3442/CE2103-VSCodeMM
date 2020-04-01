@@ -103,6 +103,18 @@ namespace ce2103::mm
 		return *default_manager;
 	}
 
+	[[noreturn]]
+	void _detail::throw_null_dereference()
+	{
+		throw std::system_error{error_code::null_dereference};
+	}
+
+	[[noreturn]]
+	void _detail::throw_out_of_bounds()
+	{
+		throw std::system_error{error_code::out_of_bounds};
+	}
+
 	const std::error_category& error_category::get() noexcept
 	{
 		static const error_category category;

@@ -189,6 +189,15 @@ namespace ce2103::mm
 			}
 	};
 
+	namespace _detail
+	{
+		[[noreturn]]
+		void throw_null_dereference();
+
+		[[noreturn]]
+		void throw_out_of_bounds();
+	}
+
 	template<typename T, template<class> class Derived>
 	Derived<T>& _detail::ptr_base<T, Derived>::operator=(std::nullptr_t) noexcept
 	{
@@ -231,7 +240,10 @@ namespace ce2103::mm
 	template<typename T, template<class> class Derived>
 	T* _detail::ptr_base<T, Derived>::access() const
 	{
-		if(this->owner != nullptr)
+		if(*this == nullptr)
+		{
+			_detail::throw_null_dereference();
+		} else if(this->owner != nullptr)
 		{
 			this->owner->probe(this->data);
 		}
