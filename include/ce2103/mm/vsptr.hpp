@@ -191,6 +191,97 @@ namespace ce2103::mm
 
 	namespace _detail
 	{
+		template<typename T>
+		using array_ptr = VSPtr<T[]>;
+	}
+
+	template<typename T>
+	class VSPtr<T[]> : public _detail::ptr_base<T, _detail::array_ptr>
+	{
+		private:
+			using base = _detail::ptr_base<T, _detail::array_ptr>;
+
+		template<typename U>
+		friend class VSPtr;
+
+		using base::base;
+
+		public:
+			template<typename... ArgumentTypes>
+			static inline VSPtr New(std::size_t count, ArgumentTypes&&... arguments)
+			{
+				return VSPtr::template create<T>
+				(
+					count, true, std::forward<ArgumentTypes>(arguments)...
+				).of_size(count);
+			}
+
+			VSPtr(const VSPtr& other) = default;
+
+			VSPtr(VSPtr&& other) = default;
+
+			VSPtr& operator=(const VSPtr& other) = default;
+
+			VSPtr& operator=(VSPtr&& other) = default;
+
+			inline std::size_t get_size() const noexcept
+			{
+				return this->size;
+			}
+
+			VSPtr slice(std::size_t start, std::size_t size) const;
+
+			T& operator[](std::ptrdiff_t index) const;
+
+			inline T* begin() const
+			{
+				return this->access();
+			}
+
+			inline T* end() const
+			{
+				return this->access() + this->size;
+			}
+
+			inline VSPtr<T> operator+(std::ptrdiff_t offset) const
+			{
+				return this->template clone_with<VSPtr<T>>(&(*this)[offset]);
+			}
+
+			inline VSPtr<T> operator-(std::ptrdiff_t offset) const
+			{
+				return this->template clone_with<VSPtr<T>>(&(*this)[-offset]);
+			}
+
+			std::ptrdiff_t operator-(const VSPtr& other) const;
+
+			inline operator VSPtr<const T[]>() const noexcept
+			{
+				return this->template clone_with<VSPtr<const T[]>>(this->data).of_size(this->size);
+			}
+
+			inline bool operator==(const VSPtr<const T[]>& other) const noexcept
+			{
+				return this->base::operator==(other) && this->size == other.size;
+			}
+
+			inline bool operator!=(const VSPtr<const T[]>& other) const noexcept
+			{
+				return this->base::operator!=(other) || this->size != other.size;
+			}
+
+		private:
+			std::size_t size = 0;
+
+			inline VSPtr of_size(std::size_t size) && noexcept
+			{
+				this->size = size;
+				return std::move(*this);
+			}
+	};
+
+	namespace _detail
+	{
 		[[noreturn]]
 		void throw_null_dereference();
 
@@ -329,6 +420,45 @@ namespace ce2103::mm
 		}
 
 		return PointerType{new_data, this->id, this->owner};
+	}
+
+	template<typename T>
+	VSPtr<T[]> VSPtr<T[]>::slice(std::size_t start, std::size_t size) const
+	{
+		if(*this == nullptr)
+		{
+			_detail::throw_null_dereference();
+		}
+
+		start = std::min(start, this->size);
+		size = std::min(size, this->size - start);
+
+		return this->template clone_with<VSPtr>(this->data + start).of_size(size);
+	}
+
+	template<typename T>
+	T& VSPtr<T[]>::operator[](std::ptrdiff_t index) const
+	{
+		if(index < 0 || index >= static_cast<std::ptrdiff_t>(this->size))
+		{
+			_detail::throw_out_of_bounds();
+		}
+
+		return this->access()[index];
+	}
+
+	template<typename T>
+	std::ptrdiff_t VSPtr<T[]>::operator-(const VSPtr& other) const
+	{
+		if(*this == nullptr || other == nullptr)
+		{
+			_detail::throw_null_dereference();
+		} else if(this->id != other.id)
+		{
+			_detail::throw_out_of_bounds();
+		}
+
+		return this->data - other.data;
 	}
 }
 
