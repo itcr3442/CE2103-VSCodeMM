@@ -6,5 +6,6 @@ find_package(Doxygen REQUIRED)
 
 add_subdirectory(src)
 add_subdirectory(deps)
+add_subdirectory(examples)
 
 doxygen_add_docs(docs src include deps)
