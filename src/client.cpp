@@ -31,24 +31,25 @@ namespace ce2103::mm
 	client_session::client_session(socket client_socket, std::string_view secret)
 	: session{std::move(client_socket)}
 	{
-		std::string hash_output;
-		hash_output.reserve(sizeof(std::uint64_t[2]) * 2);
-
-		auto push_bytes = [&hash_output](std::uint64_t half)
+		std::uint8_t hash_bytes[sizeof(std::uint64_t[2])];
+		auto put_half = [&hash_bytes](std::size_t at, std::uint64_t half) noexcept
 		{
-			for(int i = sizeof half - 1; i >= 0; --i)
+			for(std::size_t i = 0; i < sizeof half; ++i)
 			{
-				hash_output.push_back(static_cast<char>(half >> (i * CHAR_BIT)));
+				hash_bytes[at + i] = static_cast<std::uint8_t>
+				(
+					half >> ((sizeof half - i - 1) * CHAR_BIT)
+				);
 			}
 		};
 
 		auto hash = md5::of(secret);
-		push_bytes(hash.first);
-		push_bytes(hash.second);
+		put_half(0, hash.first);
+		put_half(sizeof(std::uint64_t), hash.second);
 
-		serialize_octets(hash_output);
+		auto view = std::string_view{reinterpret_cast<char*>(hash_bytes), sizeof hash_bytes};
+		this->send({{"op", "auth"}, {"hash", serialize_octets(view)}});
 
-		this->send({{"op", "auth"}, {"hash", std::move(hash_output)}});
 		if(this->receive() != json{{"value", true}})
 		{
 			this->discard();
@@ -85,21 +86,28 @@ namespace ce2103::mm
 
 	std::optional<std::string> client_session::fetch(std::size_t id)
 	{
-		auto result = this->do_id_operation<std::string>("read", id);
-		if(!result || !deserialize_octets(*result, result->length() / 2))
+		if(auto serialized = this->do_id_operation<nlohmann::json>("read", id))
 		{
-			result = std::nullopt;
+			if(auto size = deserialized_size(*serialized))
+			{
+				std::string contents;
+				contents.resize(*size);
+
+				if(deserialize_octets(*serialized, contents.data(), *size))
+				{
+					return contents;
+				}
+			}
 		}
 
-		return result;
+		return std::nullopt;
 	}
 
-	bool client_session::overwrite(std::size_t id, std::string contents)
+	bool client_session::overwrite(std::size_t id, std::string_view contents)
 	{
 		std::lock_guard lock{this->mutex};
 
-		serialize_octets(contents);
-		this->send({{"op", "write"}, {"id", id}, {"value", std::move(contents)}});
+		this->send({{"op", "write"}, {"id", id}, {"value", serialize_octets(contents)}});
 
 		bool succeeded = this->receive() == json({});
 		if(!succeeded)

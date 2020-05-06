@@ -30,7 +30,7 @@ namespace ce2103::mm
 
 			std::optional<std::string> fetch(std::size_t id);
 
-			bool overwrite(std::size_t id, std::string contents);
+			bool overwrite(std::size_t id, std::string_view contents);
 
 		private:
 			mutable std::mutex mutex;

@@ -49,7 +49,7 @@ namespace
 			bool authorized = false;
 
 			//! Attempts to authorize the client with the given PSK hash.
-			void authorize(std::string&& input);
+			void authorize(const nlohmann::json& input);
 
 			//! Finalizes the session.
 			void finalize();
@@ -67,7 +67,7 @@ namespace
 			void read_contents(std::size_t id);
 
 			//! Overwrites an object's memory contents.
-			void write_contents(std::size_t id, std::string&& contents);
+			void write_contents(std::size_t id, const nlohmann::json& contents);
 
 			//! Retrieves an active pair (see "objects"), otherwise reports client failure.
 			std::pair<char*, std::size_t>* expect_extant(std::size_t id) noexcept;
@@ -155,18 +155,19 @@ namespace
 		}
 	}
 	
-	void server_session::authorize(std::string&& input)
+	void server_session::authorize(const nlohmann::json& input)
 	{
-		if(!deserialize_octets(input, sizeof(std::uint64_t[2])))
+		char hash_bytes[sizeof(std::uint64_t[2])];
+		if(!deserialize_octets(input, hash_bytes, sizeof hash_bytes))
 		{
 			this->fail_bad_request();
 		} else
 		{
 			secret_hash hash{0, 0};
-			for(unsigned i = 0; i < sizeof(std::uint64_t[2]); ++i)
+			for(unsigned i = 0; i < sizeof hash_bytes; ++i)
 			{
 				auto& half = i < sizeof(std::uint64_t) ? hash.first : hash.second;
-				half = half << 8 | static_cast<std::uint8_t>(input[i]);
+				half = half << 8 | static_cast<std::uint8_t>(hash_bytes[i]);
 			}
 
 			this->send_result(this->authorized = hash == this->secret);
@@ -227,29 +228,20 @@ namespace
 		if(auto* pair = this->expect_extant(id); pair != nullptr)
 		{
 			auto [base, size] = *pair;
-
-			std::string contents;
-			contents.reserve(size * 2);
-			contents.resize(size);
-
-			std::copy(base, base + size, &contents[0]);
-			serialize_octets(contents);
-
-			this->send_result(std::move(contents));
+			this->send_result(serialize_octets(std::string_view{base, size}));
 		}
 	}
 
-	void server_session::write_contents(std::size_t id, std::string&& contents)
+	void server_session::write_contents(std::size_t id, const nlohmann::json& contents)
 	{
 		if(auto* pair = this->expect_extant(id); pair != nullptr)
 		{
 			auto [base, size] = *pair;
-			if(!deserialize_octets(contents, size))
+			if(!deserialize_octets(contents, base, size))
 			{
 				this->fail_wrong_size();
 			} else
 			{
-				std::copy(&contents[0], &contents[size], base);
 				this->send_empty();
 			}
 		}

@@ -355,7 +355,7 @@ namespace
 			if(::lseek(this->landing_fd, page_offset, SEEK_SET) == -1
 			|| ::read(this->landing_fd, &contents[0], writeback_length)
 			   != static_cast<::ssize_t>(writeback_length)
-			|| !client->overwrite(id, std::move(contents)))
+			|| !client->overwrite(id, contents))
 			{
 				return result::fetch_failure;
 			}

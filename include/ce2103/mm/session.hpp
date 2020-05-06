@@ -6,6 +6,7 @@
 #include <variant>
 #include <cstddef>
 #include <optional>
+#include <string_view>
 
 #include "nlohmann/json.hpp"
 
@@ -22,9 +23,17 @@ namespace ce2103::mm
 			}
 
 		protected:
-			static void serialize_octets(std::string& input);
+			static nlohmann::json serialize_octets(std::string_view input);
 
-			static bool deserialize_octets(std::string& input, std::size_t bytes) noexcept;
+			static std::optional<std::size_t> deserialized_size
+			(
+				const nlohmann::json& input
+			) noexcept;
+
+			static bool deserialize_octets
+			(
+				const nlohmann::json& input, char* output, std::size_t bytes
+			) noexcept;
 
 			explicit inline session(socket peer) noexcept
 			: peer{std::move(peer)}
