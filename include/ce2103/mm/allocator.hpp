@@ -28,6 +28,10 @@ namespace ce2103::mm
 				return unsafe_ptr{&object, 0, nullptr};
 			}
 
+			inline unsafe_ptr() noexcept
+			: unsafe_ptr{nullptr, 0, nullptr}
+			{}
+
 			/* implicit */ inline unsafe_ptr(T* data) noexcept
 			: unsafe_ptr{data, 0, nullptr}
 			{}

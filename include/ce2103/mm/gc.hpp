@@ -32,19 +32,24 @@ namespace ce2103::mm
 
 			std::string get_demangled_type_name() const;
 
+			inline std::size_t get_total_size() const noexcept
+			{
+				return sizeof(allocation) + this->padding + this->size * this->count;
+			}
+
 		private:
 			const std::type_info& type;
-			void (*destructor)(void* object);
-			std::size_t padding;
-			std::size_t size;
 			std::size_t count = 0;
+			std::size_t padding;
+			void (*destructor)(void* object);
+			std::size_t size;
 
 			inline allocation
 			(
 				const std::type_info& type, void (*destructor)(void*),
 				std::size_t padding, std::size_t size
 			) noexcept
-			: type{type}, destructor{destructor}, padding{padding}, size{size}
+			: type{type}, padding{padding}, destructor{destructor}, size{size}
 			{}
 
 			void destroy_all();
@@ -101,6 +106,13 @@ namespace ce2103::mm
 			 * \return Altered reference count
 			 */
 			virtual std::size_t drop(std::size_t id) final override;
+
+			/*!
+			 * \brief Enforces that, if no other operation is performed,
+			 *        the following given number of allocations will be
+			 *        contiguous and ordered in the ID namespace.
+			 */
+			void require_contiguous_ids(std::size_t ids) noexcept;
 
 		private:
 			//! Map of ID-(refcount, allocation header) pairs for each allocation.

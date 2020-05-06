@@ -55,7 +55,7 @@ namespace
 			void finalize();
 
 			//! Allocates a new region of memory.
-			void allocate(std::size_t size);
+			void allocate(std::size_t part_size, std::size_t parts, std::size_t remainder);
 
 			//! Incremnts an object's reference count.
 			void lift(std::size_t id);
@@ -128,7 +128,7 @@ namespace
 				this->send_error("unauthorized");
 			} else if(operation == "alloc")
 			{
-				this->allocate(command->at("size"));
+				this->allocate(command->at("unit"), command->at("parts"), command->at("rem"));
 			} else
 			{
 				std::size_t id = command->at("id");
@@ -193,12 +193,39 @@ namespace
 		this->discard();
 	}
 
-	void server_session::allocate(std::size_t size)
+	void server_session::allocate
+	(
+		std::size_t part_size, std::size_t parts, std::size_t remainder
+	)
 	{
-		auto [id, resource, base] = garbage_collector::get_instance().allocate_of<char>(size);
-		this->objects.insert(id, std::make_pair(base, size));
+		if((part_size == 0 || parts == 0) && remainder == 0)
+		{
+			this->fail_wrong_size();
+			return;
+		}
+
+		auto& gc = garbage_collector::get_instance();
+		gc.require_contiguous_ids((part_size > 0 ? parts : 0) + (remainder > 0 ? 1 : 0));
+
+		std::optional<std::size_t> first_id;
+		auto allocate_next = [&, this](std::size_t size)
+		{
+			auto [id, resource, base] = gc.allocate_of<char>(size);
+			if(!first_id)
+			{
+				first_id = id;
+			}
+
+			this->objects.insert(id, std::make_pair(base, size));
+		};
 	
-		this->send_result(id);
+		for(std::size_t i = 0; i < parts; ++i)
+		{
+			allocate_next(part_size);
+		}
+
+		allocate_next(remainder);
+		this->send_result(*first_id);
 	}
 
 	void server_session::lift(std::size_t id)

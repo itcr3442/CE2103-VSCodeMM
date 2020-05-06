@@ -22,7 +22,10 @@ namespace ce2103::mm
 
 			bool finalize();
 
-			std::optional<std::size_t> allocate(std::size_t size);
+			std::optional<std::size_t> allocate
+			(
+				std::size_t part_size, std::size_t parts, std::size_t remainder
+			);
 
 			std::optional<std::size_t> lift(std::size_t id);
 
@@ -72,6 +75,8 @@ namespace ce2103::mm
 			void install_trap_region();
 
 			void* allocation_base_for(std::size_t id) noexcept;
+
+			std::size_t get_part_size() const noexcept;
 
 			void wipe(std::size_t id, std::size_t size);
 

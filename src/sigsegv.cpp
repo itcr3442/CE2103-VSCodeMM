@@ -393,7 +393,6 @@ namespace
 
 			if(!contents
 			|| (length = contents->length()) > PAGE_SIZE
-			|| length < sizeof(ce2103::mm::allocation)
 			|| ::lseek(this->landing_fd, page_offset, SEEK_SET) == -1
 			|| ::write(this->landing_fd, contents->data(), length)
 			   != static_cast<::ssize_t>(length))
@@ -495,6 +494,11 @@ namespace ce2103::mm
 	void* remote_manager::allocation_base_for(std::size_t id) noexcept
 	{
 		return static_cast<char*>(this->trap_base) + PAGE_SIZE * id;
+	}
+
+	std::size_t remote_manager::get_part_size() const noexcept
+	{
+		return PAGE_SIZE;
 	}
 
 	void remote_manager::wipe(std::size_t id, std::size_t size)

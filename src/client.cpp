@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <climits>
 #include <optional>
+#include <algorithm>
 #include <string_view>
 #include <system_error>
 
@@ -66,11 +67,19 @@ namespace ce2103::mm
 		return cleanly_finalized;
 	}
 
-	std::optional<std::size_t> client_session::allocate(std::size_t size)
+	std::optional<std::size_t> client_session::allocate
+	(
+		std::size_t part_size, std::size_t parts, std::size_t remainder
+	)
 	{
 		std::lock_guard lock{this->mutex};
 
-		this->send({{"op", "alloc"}, {"size", size}});
+		this->send
+		({
+			{"op", "alloc"}, {"unit", part_size},
+			{"parts", parts}, {"rem", remainder}
+		});
+
 		return this->expect_value<std::size_t>();
 	}
 
@@ -189,14 +198,23 @@ namespace ce2103::mm
 			return *count - 1;
 		}
 
-		dispose(*static_cast<allocation*>(this->allocation_base_for(id)));
+		auto* header = static_cast<allocation*>(this->allocation_base_for(id));
 
-		//! There might be a pending writeback operation
-		this->evict(id);
+		std::size_t total_size = header->get_total_size();
+		std::size_t parts = (total_size - 1) / this->get_part_size() + 1;
 
-		if(!this->client.drop(id))
+		this->probe(header);
+		dispose(*header);
+
+		for(std::size_t part = id; part < id + parts; ++part)
 		{
-			throw_network_failure();
+			//! There might be a pending writeback operation
+			this->evict(part);
+
+			if(!this->client.drop(part))
+			{
+				throw_network_failure();
+			}
 		}
 
 		return 0;
@@ -210,13 +228,15 @@ namespace ce2103::mm
 
 	std::pair<std::size_t, void*> remote_manager::allocate(std::size_t size)
 	{
-		auto id = this->client.allocate(size);
+		std::size_t part_size = this->get_part_size();
+
+		auto id = this->client.allocate(part_size, size / part_size, size % part_size);
 		if(!id || !this->client.lift(*id))
 		{
 			throw_network_failure();
 		}
 
-		this->wipe(*id, size);
+		this->wipe(*id, std::min(size, part_size));
 		return std::make_pair(*id, this->allocation_base_for(*id));
 	}
 }

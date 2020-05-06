@@ -61,6 +61,29 @@ namespace ce2103::mm
 		return 0;
 	}
 
+	void garbage_collector::require_contiguous_ids(std::size_t ids) noexcept
+	{
+		std::size_t test_from = this->next_id;
+
+		bool found = false;
+		while(!found)
+		{
+			found = true;
+			for(std::size_t candidate = test_from; candidate < test_from + ids; ++candidate)
+			{
+				if(this->allocations.search(candidate) != nullptr)
+				{
+					found = false;
+					test_from = candidate + 1;
+
+					break;
+				}
+			}
+		}
+
+		this->next_id = test_from;
+	}
+
 	std::pair<std::size_t, void*> garbage_collector::allocate(std::size_t size)
 	{
 		void* base = ::operator new(size);

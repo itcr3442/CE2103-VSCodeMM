@@ -389,11 +389,7 @@ namespace ce2103::mm
 			}
 		}
 
-		if constexpr(!std::is_trivially_destructible_v<U>)
-		{
-			resource->set_initialized(count);
-		}
-
+		resource->set_initialized(count);
 		return Derived<T>{data, id, &owner};
 	}
 
