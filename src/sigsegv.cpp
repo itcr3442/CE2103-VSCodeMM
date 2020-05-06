@@ -14,7 +14,9 @@
 #include <cstddef>
 #include <cassert>
 #include <optional>
+#include <exception>
 #include <functional>
+#include <string_view>
 #include <system_error>
 #include <condition_variable>
 
@@ -428,6 +430,14 @@ namespace
 
 	void handle_segmentation_fault(int, ::siginfo_t* signal_info, void* context) noexcept
 	{
+		auto terminate = [](std::string_view last_words) noexcept
+		{
+			::write(STDERR_FILENO, last_words.data(), last_words.length());
+			std::terminate();
+
+			__builtin_unreachable();
+		};
+
 		// Stack unwinding through a signal handler triggers undefined behavior
 		try
 		{
@@ -440,27 +450,31 @@ namespace
 			{
 				auto action = was_write ? operation::begin_write : operation::begin_read;
 				if(auto response = handler.process(action, signal_info->si_addr);
-				   response == result::success)
+				   response == result::uncaught)
 				{
-					return;
-				} else if(probe_checkpoint != nullptr && response != result::uncaught)
+					/* If control reaches this point, this is a true segmentation
+					 * fault. The following sequence removes this handler and
+					 * crashes the process by triggering another fault on return.
+					 */
+					struct ::sigaction action;
+					action.sa_handler = SIG_DFL;
+
+					::sigaction(SIGSEGV, &action, nullptr);
+				} else if(response != result::success)
 				{
-					std::longjmp(*probe_checkpoint, static_cast<int>(response));
+					if(probe_checkpoint != nullptr)
+					{
+						std::longjmp(*probe_checkpoint, static_cast<int>(response));
+					} else
+					{
+						terminate("=== Non-probing remote memory operation failed ===\n");
+					}
 				}
 			}
 		} catch(...)
 		{
-			// Fall-through: crash it
+			terminate("=== Uncaught exception reached the SIGSEGV handler ===\n");
 		}
-
-		/* If control reaches this point, this is a true segmentation
-		 * fault. The following sequence removes this handler and
-		 * crashes the process by triggering another fault on return.
-		 */
-		struct ::sigaction action;
-		action.sa_handler = SIG_DFL;
-
-		::sigaction(SIGSEGV, &action, nullptr);
 	}
 }
 
