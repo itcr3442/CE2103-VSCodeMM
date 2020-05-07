@@ -7,6 +7,7 @@
 #include <iostream>
 #include <optional>
 #include <algorithm>
+#include <functional>
 #include <string_view>
 
 #include "ce2103/hash.hpp"
@@ -33,14 +34,21 @@ namespace
 			: ce2103::mm::session{std::move(client)}, secret{secret}
 			{}
 
+			//! Move-constructs a new session
+			server_session(server_session&& other) = default;
+
+			//! Destroys the session
 			~server_session();
 
+			//! Replaces the session with another one
+			server_session& operator=(server_session&& other) = default;
+
 			//! Reads a command and processes it.
-			void handle_command();
+			bool on_input();
 
 		private:
 			//! MD5 hash of the preshared key
-			const secret_hash& secret;
+			std::reference_wrapper<const secret_hash> secret;
 
 			//! ID-to-(base, size) map of active objects for this session.
 			ce2103::hash_map<std::size_t, std::pair<char*, std::size_t>> objects;
@@ -103,7 +111,7 @@ namespace
 		}
 	}
 
-	void server_session::handle_command()
+	bool server_session::on_input()
 	{
 		auto command = this->receive();
 		if(!command)
@@ -111,7 +119,7 @@ namespace
 			this->fail_bad_request();
 			this->discard();
 
-			return;
+			return false;
 		}
 
 		try
@@ -153,6 +161,8 @@ namespace
 		{
 			this->fail_bad_request();
 		}
+
+		return !this->is_lost();
 	}
 	
 	void server_session::authorize(const nlohmann::json& input)
@@ -170,7 +180,7 @@ namespace
 				half = half << 8 | static_cast<std::uint8_t>(hash_bytes[i]);
 			}
 
-			this->send_result(this->authorized = hash == this->secret);
+			this->send_result(this->authorized = hash == this->secret.get());
 		}
 	}
 
@@ -315,12 +325,10 @@ namespace
 //! Language-level process entrypoint.
 int main(int argc, const char* const argv[])
 {
-	using ce2103::ip_endpoint, ce2103::socket;
-
 	ce2103::mm::initialize_local();
 
-	std::optional<ip_endpoint> endpoint = std::nullopt;
-	if(argc != 2 || (endpoint = ip_endpoint::try_from(argv[1]), !endpoint))
+	std::optional<ce2103::ip_endpoint> endpoint = std::nullopt;
+	if(argc != 2 || (endpoint = ce2103::ip_endpoint::try_from(argv[1]), !endpoint))
 	{
 		std::cerr << "Usage: " << argv[0] << " <address>:<port>\n";
 		return 1;
@@ -333,28 +341,16 @@ int main(int argc, const char* const argv[])
 		return 1;
 	}
 
-	socket listen_socket;
+	auto secret = ce2103::md5::of(plain_text_secret);
+
+	ce2103::socket listen_socket;
 	if(!listen_socket.bind(*endpoint, true))
 	{
 		std::cerr << "Error: failed to bind the listening socket\n";
 		return 1;
 	}
 
-	auto secret = ce2103::md5::of(plain_text_secret);
-
-	while(true)
-	{
-		std::optional<socket> client = listen_socket.accept();
-		if(!client)
-		{
-			std::cerr << "Error: failed to accept a client connection\n";
-			return 1;
-		}
-
-		server_session single_client{std::move(*client), secret};
-		while(!single_client.is_lost())
-		{
-			single_client.handle_command();
-		}
-	}
+	ce2103::reactor{std::move(listen_socket), [&](ce2103::socket client) {
+		return server_session{std::move(client), secret};
+	}}.run();
 }

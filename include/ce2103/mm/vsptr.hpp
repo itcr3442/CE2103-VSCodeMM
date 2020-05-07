@@ -381,12 +381,9 @@ namespace ce2103::mm
 		auto& owner = memory_manager::get_default();
 		auto [id, resource, data] = owner.allocate_of<U>(count, always_array);
 
-		if constexpr(!std::is_trivially_constructible_v<U, ArgumentTypes...>)
+		for(U* element = data; element < data + count; ++element)
 		{
-			for(U* element = data; element < data + count; ++element)
-			{
-				new(element) U(std::forward<ArgumentTypes>(arguments)...);
-			}
+			new(element) U(std::forward<ArgumentTypes>(arguments)...);
 		}
 
 		resource->set_initialized(count);
