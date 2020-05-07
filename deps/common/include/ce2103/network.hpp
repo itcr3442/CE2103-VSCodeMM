@@ -2,12 +2,17 @@
 #define CE2103_NETWORK_HPP
 
 #include <string>
+#include <variant>
+#include <utility>
 #include <cstdarg>
 #include <optional>
+#include <type_traits>
 #include <string_view>
 
 #include <sys/socket.h>
 #include <netinet/in.h>
+
+#include "ce2103/hash_map.hpp"
 
 namespace ce2103
 {
@@ -183,6 +188,12 @@ namespace ce2103
 			 */
 			void write_formatted(const char* format, ...);
 
+			//! Retrieves the socket's file descriptor, or a negative integer if inactive
+			inline int get_descriptor() const noexcept
+			{
+				return this->descriptor;
+			}
+
 		private:
 			static constexpr std::size_t BUFFER_SIZE = 0x100;
 
@@ -221,6 +232,104 @@ namespace ce2103
 			//! Allocates the per-socket buffer, if there is none.
 			void expect_buffer();
 	};
+
+	template<typename AcceptorType>
+	class reactor;
+}
+
+namespace ce2103::_detail
+{
+	//! epoll(7)-based reactor
+	class reactor_base
+	{
+		public:
+			//! Move-constructs a reactor
+			inline reactor_base(reactor_base&& other) noexcept
+			: listen_socket{std::move(other.listen_socket)},
+			  epoll_descriptor{other.epoll_descriptor}
+			{
+				other.epoll_descriptor = -1;
+			}
+
+			//! Destroys the reactor
+			~reactor_base();
+
+			//! Moves a reactor into another one
+			reactor_base& operator=(reactor_base&& other) noexcept;
+
+		protected:
+			//! Constructs a reactor given its listening socket
+			reactor_base(socket listen_socket);
+
+			/*!
+			 * \brief Waits for an event.
+			 *
+			 * \return Either a descriptor with ready input data or the
+			 *         the socket of a newly accepted connection.
+			 */
+			std::variant<int, socket> wait();
+
+			//! Registers tee descriptor into the epoll set
+			void watch(int descriptor);
+
+			//! Removes the descriptor from the epoll set
+			void forget(int descriptor);
+
+		private:
+			socket listen_socket;    //!< Passive socket for new sessions
+			int    epoll_descriptor; //!< Handle for epoll syscalls
+	};
+}
+
+namespace ce2103
+{
+	//! A network input traffic multiplexer, for concurrent server sessions.
+	template<typename AcceptorType>
+	class reactor : private _detail::reactor_base
+	{
+		private:
+			//! Deducted from the acceptor type
+			using session_type = std::invoke_result_t<AcceptorType, socket>;
+
+		public:
+			//! Constructs a reactor from the given acceptor and listen socket
+			inline reactor(socket listen_socket, AcceptorType acceptor)
+			: _detail::reactor_base{std::move(listen_socket)}, acceptor{std::move(acceptor)}
+			{}
+
+			//! Enters the main loop
+			void run();
+
+		private:
+			AcceptorType acceptor; //!< Session generator
+
+			//! Map of fds to active sessions
+			hash_map<int, session_type> sessions;
+	};
+
+	template<typename AcceptorType>
+	void reactor<AcceptorType>::run()
+	{
+		while(true)
+		{
+			auto result = this->wait();
+			if(auto* descriptor = std::get_if<int>(&result); descriptor != nullptr)
+			{
+				if(auto* session = this->sessions.search(*descriptor);
+				   session != nullptr && !session->on_input())
+				{
+					this->forget(*descriptor);
+					this->sessions.remove(*descriptor);
+				}
+			} else if(auto* new_socket = std::get_if<socket>(&result); new_socket != nullptr)
+			{
+				int descriptor = new_socket->get_descriptor();
+
+				this->sessions.insert(descriptor, this->acceptor(std::move(*new_socket)));
+				this->watch(descriptor);
+			}
+		}
+	}
 }
 
 #endif

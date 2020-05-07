@@ -1,15 +1,28 @@
 #include <string>
+#include <cerrno>
 #include <cstdio>
+#include <cassert>
 #include <cstdarg>
 #include <cstring>
 #include <utility>
 #include <string_view>
+#include <system_error>
 
 #include <netdb.h>
 #include <unistd.h>
+#include <sys/epoll.h>
 #include <sys/socket.h>
 
 #include "ce2103/network.hpp"
+
+namespace
+{
+	[[noreturn]]
+	void throw_errno()
+	{
+		throw std::system_error{errno, std::system_category()};
+	}
+}
 
 namespace ce2103
 {
@@ -239,5 +252,83 @@ namespace ce2103
 		va_start(arguments, format);
 		this->write_variadic(format, arguments);
 		va_end(arguments);
+	}
+
+	_detail::reactor_base::~reactor_base()
+	{
+		if(this->epoll_descriptor >= 0)
+		{
+			::close(this->epoll_descriptor);
+		}
+	}
+
+	_detail::reactor_base& _detail::reactor_base::operator=(reactor_base&& other) noexcept
+	{
+		if(this->epoll_descriptor >= 0)
+		{
+			::close(this->epoll_descriptor);
+		}
+
+		this->listen_socket = std::move(other.listen_socket);
+		this->epoll_descriptor = other.epoll_descriptor;
+
+		other.epoll_descriptor = -1;
+		return *this;
+	}
+
+	_detail::reactor_base::reactor_base(socket listen_socket)
+	: listen_socket{std::move(listen_socket)},
+	  epoll_descriptor{::epoll_create1(EPOLL_CLOEXEC)}
+	{
+		if(this->epoll_descriptor < 0)
+		{
+			throw_errno();
+		}
+
+		this->watch(this->listen_socket.get_descriptor());
+	}
+
+	std::variant<int, socket> _detail::reactor_base::wait()
+	{
+		struct ::epoll_event event;
+		if(::epoll_wait(this->epoll_descriptor, &event, 1, -1) != 1)
+		{
+			throw_errno();
+		}
+
+		int descriptor = event.data.fd;
+		if(descriptor == this->listen_socket.get_descriptor())
+		{
+			auto new_socket = this->listen_socket.accept();
+			if(!new_socket)
+			{
+				throw_errno();
+			}
+
+			return std::move(*new_socket);
+		}
+
+		return descriptor;
+	}
+
+	void _detail::reactor_base::watch(int descriptor)
+	{
+		struct ::epoll_event event;
+		event.events = EPOLLIN | EPOLLRDHUP;
+		event.data.fd = descriptor;
+
+		if(::epoll_ctl(this->epoll_descriptor, EPOLL_CTL_ADD, descriptor, &event) != 0)
+		{
+			throw_errno();
+		}
+	}
+
+	void _detail::reactor_base::forget(int descriptor)
+	{
+		if(::epoll_ctl(this->epoll_descriptor, EPOLL_CTL_DEL, descriptor, nullptr) != 0
+		&& errno != EBADF) // The descriptor might already be closed
+		{
+			throw_errno();
+		}
 	}
 }
