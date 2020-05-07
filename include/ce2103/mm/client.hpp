@@ -39,7 +39,7 @@ namespace ce2103::mm
 			mutable std::mutex mutex;
 
 			template<typename T>
-			std::optional<T> do_id_operation(const char* operation, std::size_t id);
+			std::optional<T> do_id_operation(std::string_view operation, std::size_t id);
 
 			template<typename T>
 			std::optional<T> expect_value();

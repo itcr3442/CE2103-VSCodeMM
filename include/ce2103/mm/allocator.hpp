@@ -86,7 +86,7 @@ namespace ce2103::mm
 				return this->data - other.data;
 			}
 
-			inline operator T*() const noexcept
+			/* implicit */ inline operator T*() const noexcept
 			{
 				return this->access();
 			}
@@ -103,7 +103,7 @@ namespace ce2103::mm
 			inline allocator() noexcept = default;
 
 			template<typename U>
-			inline allocator(allocator<U>&) noexcept
+			inline allocator(const allocator<U>&) noexcept
 			{}
 
 			unsafe_ptr<T> allocate(std::size_t count);

@@ -1,0 +1,199 @@
+@startuml
+
+set namespaceSeparator ::
+hide circle
+skinparam genericDisplay old
+
+namespace ce2103::mm::_detail {
+	abstract class ptr_base<T, Derived> {
+		+ptr_base()
+		+ptr_base(other: const ptr_base<T, Derived>&)
+		+ptr_base(other: ptr_base<T, Derived>&&)
+		+ptr_base(std::nullptr_t)
+		+~ptr_base()
+		+operator=(other: const ptr_base<T, Derived>&) : ptr_base<T, Derived>&
+		+operator=(other: ptr_base<T, Derived>&&) : ptr_base<T, Derived>&
+		+operator=(std::nullptr_t) : ptr_base<T, Derived>&
+		+operator==(std::nullptr_t) const : bool
+		+operator==<U, OtherDerived>(other: const ptr_base<U, OtherDerived>&) const : bool
+		+operator!=(std::nullptr_t) const : bool
+		+operator!=<U, OtherDerived>(other: const ptr_base<U, OtherDerived>&) const : bool
+		+explicit operator bool() const
+		#{static} create<Args...>(count: std::size_t, always_array: bool, args: Args&&...) : Derived<T>
+		#data : T*
+		#id : std::size_t
+		#owner : memory_manager*
+		#ptr_base(data: T*, id: std::size_t, owner: memory_manager*)
+		#access() const : T*
+		#initialize<U, OtherDerived>(other: const ptr_base<U, OtherDerived>&) : Derived<T>&
+		#initialize<U, OtherDerived>(other: ptr_base<U, OtherDerived>&&) : Derived<T>&
+		#assign<U, OtherDerived>(other: const ptr_base<U, OtherDerived>&) : Derived<T>&
+		#assign<U, OtherDerived>(other: ptr_base<U, OtherDerived>&&) : Derived<T>&
+		#clone_with<Ptr>(new_data: T*) const : Ptr
+	}
+
+	abstract class function_base<Ret, Params...> {
+		+{abstract} operator()(args: Params...) : Ret
+	}
+
+	class function<Target, Ret, Params...> extends function_base {
+		+target : Target
+		+function(target: Target)
+	}
+}
+
+namespace ce2103::mm {
+	class "VSPtr<T>" extends ce2103::mm::_detail::ptr_base {
+		+{static} New<Args...>(Args&&... args) : VSPtr<T>
+		+VSPtr<U>(other : const VSPtr<U>&)
+		+VSPtr<U>(other : VSPtr<U>&&)
+		+operator=<U>(other : const VSPtr<U>&) : VSPtr<T>&
+		+operator=<U>(other : VSPtr<U>&&) : VSPtr<T>&
+		+operator=<U>(other : U&&) : VSPtr<T>&
+		+operator->() const : T*
+		+operator*() const : T&
+		+operator&() const : T&
+	}
+
+	class "VSPtr<T[]>" extends ce2103::mm::_detail::ptr_base {
+		+{static} New<Args...>(count: std::size_t, Args&&... args) : VSPtr<T[]>
+		+get_size() : std::size_t
+		+slice(start: std::size_t, size: std::size_t) const : VSPtr<T[]>
+		+operator[](index: std::ptrdiff_t) const : T&
+		+begin() const : T*
+		+end() const : T*
+		+operator+(offset: std::ptrdiff_t) const : VSPtr<T>
+		+operator-(offset: std::ptrdiff_t) const : VSPtr<T>
+		+operator-(other: const VSPtr<T[]>&) const : std::ptrdiff_t
+		+operator VSPtr<const T[]>() const
+		+operator==(other: const VSPtr<const T[]>& other) const : bool
+		+operator!=(other: const VSPtr<const T[]>& other) const : bool
+		-size : std::size_t
+		-of_size(size: std::size_t) && : VSPtr<T[]>
+	}
+
+	class "VSPtr<Ret(Params...)>" extends ce2103::mm::_detail::ptr_base {
+		+{static} New<Target>(target: Target) : VSPtr<Ret(Params...)>
+		+operator()(args: Params...) : Ret
+	}
+
+	class "VSPtr<[const] void>" extends ce2103::mm::_detail::ptr_base {
+		+VSPtr<U>(other: const VSPtr<U>&)
+		+VSPtr<U>(other: VSPtr<U>&&)
+		+operator=(other: const VSPtr<U>&) : VSPtr<U>&
+		+operator=(other: VSPtr<U>&&) : VSPtr<U>&
+	}
+
+	class allocation {
+		+set_initialized(count: std::size_t)
+		+get_mangled_type_name() : const char*
+		+get_demangled_type_name() const : std::string
+		+get_total_size() const : std::size_t
+		-type : const std::type_info&
+		-count : std::size_t
+		-padding: std::size_t
+		-destructor : void(*)(void* object)
+		-size : std::size_t
+		-allocation(type: const std::type_info&, destructor: void(*)(void*), padding: std::size_t, size: std::size_t)
+		-destroy_all()
+	}
+
+	abstract class memory_manager {
+		+{static} get_default() : memory_manager&
+		+allocate_of<T>(count: std::size_t, always_array: bool = false) : std::tuple<std::size_t. allocation*, T*>
+		+{abstract} lift(id: std::size_t) : std::size_t
+		+{abstract} drop(id: std::size_t) : std::size_t
+		+{abstract} probe(address: const void*)
+		#dispose(resource: allocation&)
+		-{abstract} allocate(size: std::size_t) : std::pair<std::size_t, void*>
+	}
+
+	class garbage_collector extends memory_manager {
+		+{static} get_instance() : garbage_collector&
+		+require_contiguous_ids(ids: std::size_t)
+		-allocations : hash_map<std::size_t, std::pair<std::size_t, allocation*>>
+		-next_id : std::size_t
+		-mutex : std::mutex
+		-thread : std::thread
+		-wakeup : std::condition_variable
+		-garbage_collector()
+		-main_loop()
+	}
+
+	class remote_manager extends memory_manager {
+		+{static} initialize(client_socket: socket, secret: std::string_view) : bool,
+		+{static} get_instance() : remote_manager&
+		-remote_manager(client_socket: socket, secret: std::string_view)
+		-client : client_session
+		-trap_base : void*
+		-{static} throw_network_failure()
+		-install_trap_region()
+		-allocation_base_for(id: std::size_t) : void*
+		-get_part_size() const : std::size_t
+		-wipe(id: std::size_t, size: std::size_t)
+		-evict(id: std::size_t)
+	}
+
+	class session {
+		+is_lost() const : bool
+		#{static} serialize_octets(input: std::string_view) : nlohmann::json
+		#{static} deserialized_size(input: const nlohmann::json&) : std::optional<std::size_t>
+		#{static} deserialize_octets(input: const nlohmann::json&, output: char*, bytes: std::size_t) : bool
+		#explicit session(peer: socket)
+		#send(data: nlohmann::json)
+		#receive() : std::optional<nlohmann::json>
+		#discard()
+		-peer : std::optional<peer>
+	}
+
+	class client_session extends session {
+		+finalize() : bool
+		+allocate(peer_size: std::size_t, parts: std::size_t, remainder: std::size_t) : std::optional<std::size_t>
+		+lift(id: std::size_t) : std::optional<std::size_t>
+		+drop(id: std::size_t) : std::optional<std::size_t>
+		+fetch(id: std::size_t) : std::optional<std::string>
+		+overwrite(id: std::size_t, contents: std::string_view) : bool
+		-mutable mutex : std::mutex
+		-do_id_operation<T>(operation: std::string_view, id: std::size_t) : std::optional<T>
+		-expect_value<T>() : std::optional<T>
+	}
+
+	enum error_code {
+		unknown
+		memory_error
+		network_failure
+		null_dereference
+		out_of_bounds
+	}
+
+	class error_category {
+		+{static} get() : const std::error_category&
+		+name() const : const char*
+		+message(condition: int) const : std::string
+		-error_category()
+	}
+
+	class allocator {
+		+allocator()
+		+allocator<U>(other: const allocator<U>&)
+		+allocate(count: std::size_t) : unsafe_ptr<T>
+		+deallocate(ptr: const unsafe_ptr<T>&, count: std::size_t)
+		+operator==(other: const allocator<T>&) : bool
+		+operator!=(other: const allocator<T>&) : bool
+	}
+
+	class unsafe_ptr<T> extends VSPtr {
+		+{static} pointer_to(object: T&) : unsafe_ptr<T>
+		+unsafe_ptr()
+		+unsafe_ptr(data: T*)
+		+operator++() : unsafe_ptr<T>&
+		+operator++(int) : unsafe_ptr<T>
+		+operator--() : unsafe_ptr<T>&
+		+operator--(int) : unsafe_ptr<T>
+		+operator-(offset: std::ptrdiff_t) const : unsafe_ptr<T>
+		+operator-(other: const unsafe_ptr<T>&) const : std::ptrdiff_t
+		+operator T*() const
+	}
+}
+
+@enduml

@@ -128,11 +128,11 @@ namespace ce2103::mm
 	}
 
 	template<typename T>
-	std::optional<T> client_session::do_id_operation(const char* operation, std::size_t id)
+	std::optional<T> client_session::do_id_operation(std::string_view operation, std::size_t id)
 	{
 		std::lock_guard lock{this->mutex};
 
-		this->send({{"op", operation}, {"id", id}});
+		this->send({{"op", std::string(operation)}, {"id", id}});
 		return this->expect_value<T>();
 	}
 
