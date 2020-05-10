@@ -27,29 +27,42 @@ namespace ce2103::mm
 
 			inline const char* get_mangled_type_name() const noexcept
 			{
-				return this->type.name();
+				return this->payload_type.rtti.name();
 			}
 
 			std::string get_demangled_type_name() const;
 
 			inline std::size_t get_total_size() const noexcept
 			{
-				return sizeof(allocation) + this->padding + this->size * this->count;
+				return   sizeof(allocation) + this->payload_type.padding
+				       + this->payload_type.size * this->count;
 			}
 
 		private:
-			const std::type_info& type;
-			std::size_t count = 0;
-			std::size_t padding;
-			void (*destructor)(void* object);
-			std::size_t size;
+			struct type final
+			{
+				const std::type_info& rtti;
 
-			inline allocation
-			(
-				const std::type_info& type, void (*destructor)(void*),
-				std::size_t padding, std::size_t size
-			) noexcept
-			: type{type}, padding{padding}, destructor{destructor}, size{size}
+				void (*const destructor)(void* object);
+
+				std::size_t size;
+
+				std::size_t padding;
+
+				inline constexpr type
+				(
+					const std::type_info& rtti, void (*const destructor)(void*),
+					std::size_t size, std::size_t padding
+				) noexcept
+				: rtti{rtti}, destructor{destructor}, size{size}, padding{padding}
+				{}
+			};
+
+			const type& payload_type;
+			std::size_t count = 0;
+
+			inline allocation(const type& payload_type) noexcept
+			: payload_type{payload_type}
 			{}
 
 			void destroy_all();
@@ -158,21 +171,23 @@ namespace ce2103::mm
 		constexpr auto padding = (alignof(T) - alignof(allocation) % alignof(T)) % alignof(T);
 		constexpr auto header_size = sizeof(allocation) + padding;
 
-		auto [id, base] = this->allocate(header_size + sizeof(T) * count);
-
-		void (*destructor)(void* object) = nullptr;
-		if constexpr(!std::is_trivially_destructible_v<T>)
-		{
-			destructor = [](void* object)
+		constexpr void (*destructor)(void* object)
+			= std::is_trivially_destructible_v<T>
+			? static_cast<void(*)(void*)>([](void* object)
 			{
 				static_cast<T*>(object)->~T();
-			};
-		}
+			})
+			: nullptr;
 
+		using type = allocation::type;
+
+		static constexpr type type_of_single{typeid(T), destructor, sizeof(T), padding};
+		static constexpr type type_of_array{typeid(T[]), destructor, sizeof(T), padding};
+
+		auto [id, base] = this->allocate(header_size + sizeof(T) * count);
 		this->probe(base);
 
-		auto& type = count == 1 && !always_array ? typeid(T) : typeid(T[]);
-		new(base) allocation{type, destructor, padding, sizeof(T)};
+		new(base) allocation{count == 1 && !always_array ? type_of_single : type_of_array};
 
 		auto* first_element = reinterpret_cast<T*>(static_cast<char*>(base) + header_size);
 		return std::make_tuple(id, static_cast<allocation*>(base), first_element);

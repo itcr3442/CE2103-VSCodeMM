@@ -13,13 +13,15 @@ namespace ce2103::mm
 {
 	void allocation::destroy_all()
 	{
-		char* element_base = reinterpret_cast<char*>(this) + sizeof(allocation) + this->padding;
-		if(this->destructor != nullptr)
+		char* element_base = reinterpret_cast<char*>(this) + sizeof(allocation)
+		                   + this->payload_type.padding;
+
+		if(this->payload_type.destructor != nullptr)
 		{
 			for(std::size_t i = 0; i < this->count; ++i)
 			{
-				this->destructor(element_base);
-				element_base += this->size;
+				this->payload_type.destructor(element_base);
+				element_base += this->payload_type.size;
 			}
 		}
 	}

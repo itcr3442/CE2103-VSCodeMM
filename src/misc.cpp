@@ -85,8 +85,9 @@ namespace ce2103::mm
 	{
 		std::string output;
 
-		char* demangled = ::abi::__cxa_demangle(this->type.name(), nullptr, nullptr, nullptr);
-		if(demangled != nullptr)
+		const char* mangled = this->get_mangled_type_name();
+		if(char* demangled = ::abi::__cxa_demangle(mangled, nullptr, nullptr, nullptr);
+		   demangled != nullptr)
 		{
 			output = demangled;
 			std::free(demangled);
