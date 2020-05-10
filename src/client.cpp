@@ -74,12 +74,19 @@ namespace ce2103::mm
 	{
 		std::lock_guard lock{this->mutex};
 
-		this->send
-		({
-			{"op", "alloc"}, {"unit", part_size},
-			{"parts", parts}, {"rem", remainder}
-		});
+		json query{{"op", "alloc"}};
+		if(remainder > 0)
+		{
+			query["rem"] = remainder;
+		}
 
+		if(part_size > 0 && parts > 0)
+		{
+			query["unit"] = part_size;
+			query["parts"] = parts;
+		}
+
+		this->send(std::move(query));
 		return this->expect_value<std::size_t>();
 	}
 

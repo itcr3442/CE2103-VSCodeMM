@@ -136,7 +136,11 @@ namespace
 				this->send_error("unauthorized");
 			} else if(operation == "alloc")
 			{
-				this->allocate(command->at("unit"), command->at("parts"), command->at("rem"));
+				this->allocate
+				(
+					command->value("unit", 0), command->value("parts", 0),
+					command->value("rem", 0)
+				);
 			} else
 			{
 				std::size_t id = command->at("id");
