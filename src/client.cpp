@@ -49,9 +49,9 @@ namespace ce2103::mm
 		put_half(sizeof(std::uint64_t), hash.second);
 
 		auto view = std::string_view{reinterpret_cast<char*>(hash_bytes), sizeof hash_bytes};
-		this->send({{"op", "auth"}, {"hash", serialize_octets(view)}});
+		this->send({{"auth", serialize_octets(view)}});
 
-		if(this->receive() != json{{"value", true}})
+		if(this->receive() != json(true))
 		{
 			this->discard();
 		}
@@ -59,7 +59,7 @@ namespace ce2103::mm
 
 	bool client_session::finalize()
 	{
-		this->send({{"op", "bye"}});
+		this->send({{"bye", {}}});
 
 		bool cleanly_finalized = this->receive() == json({});
 		this->discard();
@@ -74,7 +74,7 @@ namespace ce2103::mm
 	{
 		std::lock_guard lock{this->mutex};
 
-		json query{{"op", "alloc"}};
+		json query{{"alloc", 1}};
 		if(remainder > 0)
 		{
 			query["rem"] = remainder;
@@ -87,22 +87,48 @@ namespace ce2103::mm
 		}
 
 		this->send(std::move(query));
-		return this->expect_value<std::size_t>();
+
+		auto result = this->receive();
+		if(!result || !result->is_number_unsigned())
+		{
+			this->discard();
+			return std::nullopt;
+		}
+
+		return result->get<std::size_t>();
 	}
 
-	std::optional<std::size_t> client_session::lift(std::size_t id)
+	bool client_session::lift(std::size_t id)
 	{
-		return this->do_id_operation<std::size_t>("lift", id);
+		this->send({{"lift", id}});
+		return this->expect_empty();
 	}
 
-	std::optional<std::size_t> client_session::drop(std::size_t id)
+	std::optional<drop_result> client_session::drop(std::size_t id)
 	{
-		return this->do_id_operation<std::size_t>("drop", id);
+		this->send({{"drop", id}});
+
+		auto result = this->receive();
+		if(result == json({}))
+		{
+			return drop_result::reduced;
+		} else if(result == json{{"hanging", true}})
+		{
+			return drop_result::hanging;
+		} else if(result == json{{"lost", true}})
+		{
+			return drop_result::lost;
+		} else
+		{
+			this->discard();
+			return std::nullopt;
+		}
 	}
 
 	std::optional<std::string> client_session::fetch(std::size_t id)
 	{
-		if(auto serialized = this->do_id_operation<nlohmann::json>("read", id))
+		this->send({{"read", id}});
+		if(auto serialized = this->receive())
 		{
 			if(auto size = deserialized_size(*serialized))
 			{
@@ -123,8 +149,12 @@ namespace ce2103::mm
 	{
 		std::lock_guard lock{this->mutex};
 
-		this->send({{"op", "write"}, {"id", id}, {"value", serialize_octets(contents)}});
+		this->send({{"write", id}, {"value", serialize_octets(contents)}});
+		return this->expect_empty();
+	}
 
+	bool client_session::expect_empty()
+	{
 		bool succeeded = this->receive() == json({});
 		if(!succeeded)
 		{
@@ -132,15 +162,6 @@ namespace ce2103::mm
 		}
 
 		return succeeded;
-	}
-
-	template<typename T>
-	std::optional<T> client_session::do_id_operation(std::string_view operation, std::size_t id)
-	{
-		std::lock_guard lock{this->mutex};
-
-		this->send({{"op", std::string(operation)}, {"id", id}});
-		return this->expect_value<T>();
 	}
 
 	template<typename T>
@@ -183,48 +204,54 @@ namespace ce2103::mm
 		this->install_trap_region();
 	}
 
-	std::size_t remote_manager::lift(std::size_t id)
+	void remote_manager::lift(std::size_t id)
 	{
-		auto count = this->client.lift(id);
-		if(!count)
+		if(!this->client.lift(id))
 		{
 			throw_network_failure();
 		}
-
-		return *count - 1;
 	}
 
-	std::size_t remote_manager::drop(std::size_t id)
+	drop_result remote_manager::drop(std::size_t id)
 	{
-		auto count = this->client.drop(id);
-		if(!count)
+		auto result = this->client.drop(id);
+		if(!result)
 		{
 			throw_network_failure();
-		} else if(*count > 1)
-		{
-			return *count - 1;
 		}
 
-		auto* header = static_cast<allocation*>(this->allocation_base_for(id));
-
-		std::size_t total_size = header->get_total_size();
-		std::size_t parts = (total_size - 1) / this->get_part_size() + 1;
-
-		this->probe(header);
-		dispose(*header);
-
-		for(std::size_t part = id; part < id + parts; ++part)
+		switch(*result)
 		{
-			//! There might be a pending writeback operation
-			this->evict(part);
+			case drop_result::reduced:
+				return drop_result::reduced;
 
-			if(!this->client.drop(part))
+			case drop_result::hanging:
 			{
-				throw_network_failure();
-			}
-		}
+				auto* header = static_cast<allocation*>(this->allocation_base_for(id));
 
-		return 0;
+				std::size_t total_size = header->get_total_size();
+				std::size_t parts = (total_size - 1) / this->get_part_size() + 1;
+
+				this->probe(header);
+				dispose(*header);
+
+				for(std::size_t part = id; part < id + parts; ++part)
+				{
+					//! There might be a pending writeback operation
+					this->evict(part);
+
+					if(!this->client.drop(part))
+					{
+						throw_network_failure();
+					}
+				}
+
+				return drop_result::lost;
+			}
+
+			default:
+				assert(false);
+		}
 	}
 
 	[[noreturn]]
@@ -238,7 +265,7 @@ namespace ce2103::mm
 		std::size_t part_size = this->get_part_size();
 
 		auto id = this->client.allocate(part_size, size / part_size, size % part_size);
-		if(!id || !this->client.lift(*id))
+		if(!id)
 		{
 			throw_network_failure();
 		}

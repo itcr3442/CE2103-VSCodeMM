@@ -27,9 +27,9 @@ namespace ce2103::mm
 				std::size_t part_size, std::size_t parts, std::size_t remainder
 			);
 
-			std::optional<std::size_t> lift(std::size_t id);
+			bool lift(std::size_t id);
 
-			std::optional<std::size_t> drop(std::size_t id);
+			std::optional<drop_result> drop(std::size_t id);
 
 			std::optional<std::string> fetch(std::size_t id);
 
@@ -38,8 +38,7 @@ namespace ce2103::mm
 		private:
 			mutable std::mutex mutex;
 
-			template<typename T>
-			std::optional<T> do_id_operation(std::string_view operation, std::size_t id);
+			bool expect_empty();
 
 			template<typename T>
 			std::optional<T> expect_value();
@@ -57,9 +56,9 @@ namespace ce2103::mm
 
 			remote_manager(private_t, socket client_socket, std::string_view secret);
 
-			virtual std::size_t lift(std::size_t id) final override;
+			virtual void lift(std::size_t id) final override;
 
-			virtual std::size_t drop(std::size_t id) final override;
+			virtual drop_result drop(std::size_t id) final override;
 
 			virtual void probe(const void* address) final override;
 

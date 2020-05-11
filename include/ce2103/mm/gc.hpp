@@ -68,6 +68,13 @@ namespace ce2103::mm
 			void destroy_all();
 	};
 
+	enum class drop_result
+	{
+		reduced,
+		hanging,
+		lost
+	};
+
 	class memory_manager
 	{
 		public:
@@ -79,8 +86,9 @@ namespace ce2103::mm
 				std::size_t count, bool always_array = false
 			);
 
-			virtual std::size_t lift(std::size_t id) = 0;
-			virtual std::size_t drop(std::size_t id) = 0;
+			virtual void lift(std::size_t id) = 0;
+
+			virtual drop_result drop(std::size_t id) = 0;
 
 			inline virtual void probe([[maybe_unused]] const void* address)
 			{}
@@ -109,16 +117,16 @@ namespace ce2103::mm
 			 *
 			 * \return Altered reference count
 			 */
-			virtual std::size_t lift(std::size_t id) final override;
+			virtual void lift(std::size_t id) final override;
 
 			/*!
 			 * \brief Decrements the reference count of the given object.
 			 *        If the count reaches zero, the object will be collected
 			 *        in the future by the GC.
 			 *
-			 * \return Altered reference count
+			 * \return Result of the drop operation
 			 */
-			virtual std::size_t drop(std::size_t id) final override;
+			virtual drop_result drop(std::size_t id) final override;
 
 			/*!
 			 * \brief Enforces that, if no other operation is performed,

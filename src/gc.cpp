@@ -33,34 +33,34 @@ namespace ce2103::mm
 		return gc;
 	}
 
-	std::size_t garbage_collector::lift(std::size_t id)
+	void garbage_collector::lift(std::size_t id)
 	{
 		std::lock_guard lock{this->mutex};
 
 		auto* pair = this->allocations.search(id);
-		return pair != nullptr ? ++pair->first : 0;
+		assert(pair != nullptr);
+
+		++pair->first;
 	}
 
-	std::size_t garbage_collector::drop(std::size_t id)
+	drop_result garbage_collector::drop(std::size_t id)
 	{
 		std::lock_guard lock{this->mutex};
 
-		if(auto* pair = this->allocations.search(id); pair != nullptr)
+		auto* pair = this->allocations.search(id);
+		assert(pair != nullptr && pair->first > 0);
+
+		switch(--pair->first)
 		{
-			auto& reference_count = pair->first;
+			case 1:
+				return drop_result::hanging;
 
-			/* If pair->first == 0, aborts in debug builds but doesn't
-			 * underflow in release builds, resorting to saturation
-			 * arithmetic instead.
-			 */
-			assert(reference_count > 0);
-			if(reference_count > 0)
-			{
-				return --reference_count;
-			}
+			case 0:
+				return drop_result::lost;
+
+			default:
+				return drop_result::reduced;
 		}
-
-		return 0;
 	}
 
 	void garbage_collector::require_contiguous_ids(std::size_t ids) noexcept

@@ -21,7 +21,9 @@
 
 using secret_hash = decltype(ce2103::md5::of({}));
 using nlohmann::json;
+
 using ce2103::mm::garbage_collector;
+using ce2103::mm::drop_result;
 
 namespace
 {
@@ -63,7 +65,11 @@ namespace
 			void finalize();
 
 			//! Allocates a new region of memory.
-			void allocate(std::size_t part_size, std::size_t parts, std::size_t remainder);
+			void allocate
+			(
+				std::size_t part_size, std::size_t parts,
+				std::size_t remainder, std::size_t initial_count
+			);
 
 			//! Incremnts an object's reference count.
 			void lift(std::size_t id);
@@ -80,15 +86,8 @@ namespace
 			//! Retrieves an active pair (see "objects"), otherwise reports client failure.
 			std::pair<char*, std::size_t>* expect_extant(std::size_t id) noexcept;
 
-			//! Reports success to the client with a response value.
-			template<typename T>
-			void send_result(T value);
-
 			//! Sends an empty response ("{}")
 			void send_empty();
-
-			//! Reports success to the client with a response value.
-			void send_result(long value);
 
 			//! Fails with the given error message.
 			void send_error(const char* message);
@@ -104,7 +103,7 @@ namespace
 	{
 		for(const auto& [id, pair] : this->objects)
 		{
-			while(garbage_collector::get_instance().drop(id) > 0)
+			while(garbage_collector::get_instance().drop(id) != drop_result::lost)
 			{
 				continue;
 			}
@@ -124,42 +123,37 @@ namespace
 
 		try
 		{
-			const std::string& operation = command->at("op");
-			if(operation == "auth")
+			if(auto hash = command->find("auth"); hash != command->end())
 			{
-				this->authorize(command->at("hash"));
-			} else if(operation == "bye")
+				this->authorize(*hash);
+			} else if(command->contains("bye"))
 			{
 				this->finalize();
 			} else if(!this->authorized)
 			{
 				this->send_error("unauthorized");
-			} else if(operation == "alloc")
+			} else if(auto lifts = command->find("alloc"); lifts != command->end())
 			{
 				this->allocate
 				(
 					command->value("unit", 0), command->value("parts", 0),
-					command->value("rem", 0)
+					command->value("rem", 0), *lifts
 				);
+			} else if(auto id = command->find("read"); id != command->end())
+			{
+				this->read_contents(*id);
+			} else if(auto id = command->find("write"); id != command->end())
+			{
+				this->write_contents(*id, command->at("value"));
+			} else if(auto id = command->find("lift"); id != command->end())
+			{
+				this->lift(*id);
+			} else if(auto id = command->find("drop"); id != command->end())
+			{
+				this->drop(*id);
 			} else
 			{
-				std::size_t id = command->at("id");
-				if(operation == "read")
-				{
-					this->read_contents(id);
-				} else if(operation == "write")
-				{
-					this->write_contents(id, command->at("value"));
-				} else if(operation == "lift")
-				{
-					this->lift(id);
-				} else if(operation == "drop")
-				{
-					this->drop(id);
-				} else
-				{
-					this->fail_bad_request();
-				}
+				this->fail_bad_request();
 			}
 		} catch(const json::exception&)
 		{
@@ -184,7 +178,7 @@ namespace
 				half = half << 8 | static_cast<std::uint8_t>(hash_bytes[i]);
 			}
 
-			this->send_result(this->authorized = hash == this->secret.get());
+			this->send(this->authorized = hash == this->secret.get());
 		}
 	}
 
@@ -209,7 +203,8 @@ namespace
 
 	void server_session::allocate
 	(
-		std::size_t part_size, std::size_t parts, std::size_t remainder
+		std::size_t part_size, std::size_t parts,
+		std::size_t remainder, std::size_t initial_count
 	)
 	{
 		if((part_size == 0 || parts == 0) && remainder == 0)
@@ -239,14 +234,20 @@ namespace
 		}
 
 		allocate_next(remainder);
-		this->send_result(*first_id);
+		while(initial_count-- > 0)
+		{
+			gc.lift(*first_id);
+		}
+
+		this->send(*first_id);
 	}
 
 	void server_session::lift(std::size_t id)
 	{
 		if(this->expect_extant(id) != nullptr)
 		{
-			this->send_result(garbage_collector::get_instance().lift(id));
+			garbage_collector::get_instance().lift(id);
+			this->send_empty();
 		}
 	}
 
@@ -254,13 +255,21 @@ namespace
 	{
 		if(this->expect_extant(id) != nullptr)
 		{
-			auto remaining = garbage_collector::get_instance().drop(id);
-			if(remaining == 0)
+			switch(garbage_collector::get_instance().drop(id))
 			{
-				this->objects.remove(id);
-			}
+				case drop_result::hanging:
+					this->send({{"hanging", true}});
+					break;
 
-			this->send_result(remaining);
+				case drop_result::lost:
+					this->send({{"lost", true}});
+					this->objects.remove(id);
+
+					break;
+
+				default:
+					this->send_empty();
+			}
 		}
 	}
 
@@ -269,7 +278,7 @@ namespace
 		if(auto* pair = this->expect_extant(id); pair != nullptr)
 		{
 			auto [base, size] = *pair;
-			this->send_result(serialize_octets(std::string_view{base, size}));
+			this->send(serialize_octets(std::string_view{base, size}));
 		}
 	}
 
@@ -302,12 +311,6 @@ namespace
 	void server_session::send_empty()
 	{
 		this->send(json({}));
-	}
-
-	template<typename T>
-	void server_session::send_result(T value)
-	{
-		this->send({{"value", std::move(value)}});
 	}
 
 	void server_session::send_error(const char* message)
