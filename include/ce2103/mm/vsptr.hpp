@@ -9,117 +9,117 @@
 
 #include "ce2103/mm/gc.hpp"
 
+namespace ce2103::mm::_detail
+{
+	template<typename T, template<class> class Derived>
+	class ptr_base
+	{
+		template<typename, template<class> class>
+		friend class ptr_base;
+
+		public:
+			ptr_base() noexcept = default;
+
+			inline ptr_base(const ptr_base& other) noexcept
+			{
+				this->initialize(other);
+			}
+
+			inline ptr_base(ptr_base&& other) noexcept
+			{
+				this->initialize(std::move(other));
+			}
+
+			/* implicit */ inline ptr_base(std::nullptr_t) noexcept
+			: ptr_base{}
+			{}
+
+			inline ~ptr_base()
+			{
+				*this = nullptr;
+			}
+
+			inline ptr_base& operator=(const ptr_base& other) noexcept
+			{
+				return this->assign(other);
+			}
+
+			inline ptr_base& operator=(ptr_base&& other) noexcept
+			{
+				return this->assign(std::move(other));
+			}
+
+			Derived<T>& operator=(std::nullptr_t) noexcept;
+
+			inline bool operator==(std::nullptr_t) const noexcept
+			{
+				return this->data == nullptr;
+			}
+
+			template<typename U,
+					 template<class> class OtherDerived,
+					 typename = std::enable_if_t<std::is_convertible_v<U*, T*>
+											  || std::is_convertible_v<T*, U*>>>
+			inline bool operator==(const ptr_base<U, OtherDerived>& other) const noexcept
+			{
+				return this->data == other.data;
+			}
+
+			inline bool operator!=(std::nullptr_t) const noexcept
+			{
+				return this->data != nullptr;
+			}
+
+			template<typename U,
+					 template<class> class OtherDerived,
+					 typename = std::enable_if_t<std::is_convertible_v<U*, T*>
+											  || std::is_convertible_v<T*, U*>>>
+			inline bool operator!=(const ptr_base<U, OtherDerived>& other) const noexcept
+			{
+				return this->data != other.data;
+			}
+
+			explicit inline operator bool() const noexcept
+			{
+				return this->data != nullptr;
+			}
+
+		protected:
+			template<typename U, typename... ArgumentTypes>
+			static Derived<T> create
+			(
+				std::size_t count, bool always_aray, ArgumentTypes&&... arguments
+			);
+
+			T*              data = nullptr;
+			std::size_t     id;
+			memory_manager* owner = nullptr;
+
+			inline ptr_base(T* data, std::size_t id, memory_manager* owner) noexcept
+			: data{data}, id{id}, owner{owner}
+			{}
+
+			T* access() const;
+
+			template<typename U, template<class> class OtherDerived>
+			Derived<T>& initialize(const ptr_base<U, OtherDerived>& other);
+
+			template<typename U, template<class> class OtherDerived>
+			Derived<T>& initialize(ptr_base<U, OtherDerived>&& other) noexcept;
+
+			template<typename U, template<class> class OtherDerived>
+			Derived<T>& assign(const ptr_base<U, OtherDerived>& other);
+
+			template<typename U, template<class> class OtherDerived>
+			Derived<T>& assign(ptr_base<U, OtherDerived>&& other) noexcept;
+
+			template<class PointerType>
+			PointerType clone_with(T* new_data) const;
+	};
+}
+
 namespace ce2103::mm
 {
-	namespace _detail
-	{
-		template<typename T, template<class> class Derived>
-		class ptr_base
-		{
-			template<typename, template<class> class>
-			friend class ptr_base;
-
-			public:
-				ptr_base() noexcept = default;
-
-				inline ptr_base(const ptr_base& other) noexcept
-				{
-					this->initialize(other);
-				}
-
-				inline ptr_base(ptr_base&& other) noexcept
-				{
-					this->initialize(std::move(other));
-				}
-
-				/* implicit */ inline ptr_base(std::nullptr_t) noexcept
-				: ptr_base{}
-				{}
-
-				inline ~ptr_base()
-				{
-					*this = nullptr;
-				}
-
-				inline ptr_base& operator=(const ptr_base& other) noexcept
-				{
-					return this->assign(other);
-				}
-
-				inline ptr_base& operator=(ptr_base&& other) noexcept
-				{
-					return this->assign(std::move(other));
-				}
-
-				Derived<T>& operator=(std::nullptr_t) noexcept;
-
-				inline bool operator==(std::nullptr_t) const noexcept
-				{
-					return this->data == nullptr;
-				}
-
-				template<typename U,
-				         template<class> class OtherDerived,
-				         typename = std::enable_if_t<std::is_convertible_v<U*, T*>
-				                                  || std::is_convertible_v<T*, U*>>>
-				inline bool operator==(const ptr_base<U, OtherDerived>& other) const noexcept
-				{
-					return this->data == other.data;
-				}
-
-				inline bool operator!=(std::nullptr_t) const noexcept
-				{
-					return this->data != nullptr;
-				}
-
-				template<typename U,
-				         template<class> class OtherDerived,
-				         typename = std::enable_if_t<std::is_convertible_v<U*, T*>
-				                                  || std::is_convertible_v<T*, U*>>>
-				inline bool operator!=(const ptr_base<U, OtherDerived>& other) const noexcept
-				{
-					return this->data != other.data;
-				}
-
-				explicit inline operator bool() const noexcept
-				{
-					return this->data != nullptr;
-				}
-
-			protected:
-				template<typename U, typename... ArgumentTypes>
-				static Derived<T> create
-				(
-					std::size_t count, bool always_aray, ArgumentTypes&&... arguments
-				);
-
-				T*              data = nullptr;
-				std::size_t     id;
-				memory_manager* owner = nullptr;
-
-				inline ptr_base(T* data, std::size_t id, memory_manager* owner) noexcept
-				: data{data}, id{id}, owner{owner}
-				{}
-
-				T* access() const;
-
-				template<typename U, template<class> class OtherDerived>
-				Derived<T>& initialize(const ptr_base<U, OtherDerived>& other);
-
-				template<typename U, template<class> class OtherDerived>
-				Derived<T>& initialize(ptr_base<U, OtherDerived>&& other) noexcept;
-
-				template<typename U, template<class> class OtherDerived>
-				Derived<T>& assign(const ptr_base<U, OtherDerived>& other);
-
-				template<typename U, template<class> class OtherDerived>
-				Derived<T>& assign(ptr_base<U, OtherDerived>&& other) noexcept;
-
-				template<class PointerType>
-				PointerType clone_with(T* new_data) const;
-		};
-	}
-
 	template<typename T>
 	class VSPtr : public _detail::ptr_base<T, VSPtr>
 	{
@@ -188,13 +188,16 @@ namespace ce2103::mm
 				return **this;
 			}
 	};
+}
 
-	namespace _detail
-	{
-		template<typename T>
-		using array_ptr = VSPtr<T[]>;
-	}
+namespace ce2103::mm::_detail
+{
+	template<typename T>
+	using array_ptr = VSPtr<T[]>;
+}
 
+namespace ce2103::mm
+{
 	template<typename T>
 	class VSPtr<T[]> : public _detail::ptr_base<T, _detail::array_ptr>
 	{
@@ -279,36 +282,39 @@ namespace ce2103::mm
 				return std::move(*this);
 			}
 	};
+}
 
-	namespace _detail
+namespace ce2103::mm::_detail
+{
+	template<typename ReturnType, typename... ParameterTypes>
+	struct function_base
 	{
-		template<typename ReturnType, typename... ParameterTypes>
-		struct function_base
+		using type = ReturnType(ParameterTypes...);
+
+		virtual ReturnType operator()(ParameterTypes... parameters) = 0;
+	};
+
+	template<typename TargetType, typename ReturnType, typename... ParameterTypes>
+	struct function final : function_base<ReturnType, ParameterTypes...>
+	{
+		TargetType target;
+
+		inline function(TargetType target)
+		: target{std::move(target)}
+		{}
+
+		virtual inline ReturnType operator()(ParameterTypes... arguments) final override
 		{
-			using type = ReturnType(ParameterTypes...);
+			return std::invoke(this->target, std::forward<ParameterTypes>(arguments)...);
+		}
+	};
 
-			virtual ReturnType operator()(ParameterTypes... parameters) = 0;
-		};
+	template<class FunctionType> 
+	using function_ptr = VSPtr<typename FunctionType::type>;
+}
 
-		template<typename TargetType, typename ReturnType, typename... ParameterTypes>
-		struct function final : function_base<ReturnType, ParameterTypes...>
-		{
-			TargetType target;
-
-			inline function(TargetType target)
-			: target{std::move(target)}
-			{}
-
-			virtual inline ReturnType operator()(ParameterTypes... arguments) final override
-			{
-				return std::invoke(this->target, std::forward<ParameterTypes>(arguments)...);
-			}
-		};
-
-		template<class FunctionType> 
-		using function_ptr = VSPtr<typename FunctionType::type>;
-	}
-
+namespace ce2103::mm
+{
 	template<typename ReturnType, typename... ParameterTypes>
 	class VSPtr<ReturnType(ParameterTypes...)> : public _detail::ptr_base
 	<
@@ -348,16 +354,19 @@ namespace ce2103::mm
 				return (*this->access())(std::forward<ParameterTypes>(arguments)...);
 			}
 	};
+}
 
-	namespace _detail
-	{
-		[[noreturn]]
-		void throw_null_dereference();
+namespace ce2103::mm::_detail
+{
+	[[noreturn]]
+	void throw_null_dereference();
 
-		[[noreturn]]
-		void throw_out_of_bounds();
-	}
+	[[noreturn]]
+	void throw_out_of_bounds();
+}
 
+namespace ce2103::mm
+{
 	template<typename T, template<class> class Derived>
 	Derived<T>& _detail::ptr_base<T, Derived>::operator=(std::nullptr_t) noexcept
 	{
