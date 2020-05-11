@@ -85,6 +85,8 @@ namespace ce2103::mm::_detail
 			}
 
 		protected:
+			using element_type = T;
+
 			template<typename U, typename... ArgumentTypes>
 			static Derived<T> create
 			(
@@ -114,7 +116,7 @@ namespace ce2103::mm::_detail
 			Derived<T>& assign(ptr_base<U, OtherDerived>&& other) noexcept;
 
 			template<class PointerType>
-			PointerType clone_with(T* new_data) const;
+			PointerType clone_with(typename PointerType::element_type* new_data) const;
 	};
 }
 
@@ -187,6 +189,12 @@ namespace ce2103::mm
 			{
 				return **this;
 			}
+
+			template<typename FieldType, typename BoundT = std::enable_if_t
+			<
+				std::is_class_v<std::conditional<true, T, std::void_t<FieldType>>>, T
+			>>
+			VSPtr<FieldType> operator->*(FieldType BoundT::*member) const;
 	};
 }
 
@@ -483,7 +491,10 @@ namespace ce2103::mm
 
 	template<typename T, template<class> class Derived>
 	template<class PointerType>
-	PointerType _detail::ptr_base<T, Derived>::clone_with(T* new_data) const
+	PointerType _detail::ptr_base<T, Derived>::clone_with
+	(
+		typename PointerType::element_type* new_data
+	) const
 	{
 		if(this->owner != nullptr)
 		{
@@ -491,6 +502,19 @@ namespace ce2103::mm
 		}
 
 		return PointerType{new_data, this->id, this->owner};
+	}
+
+	template<typename T>
+	template<typename FieldType, typename BoundT>
+	VSPtr<FieldType> VSPtr<T>::operator->*(FieldType BoundT::*member) const
+	{
+		static_assert(std::is_same_v<BoundT, T>);
+		if(*this == nullptr || member == nullptr)
+		{
+			_detail::throw_null_dereference();
+		}
+
+		return this->template clone_with<VSPtr<FieldType>>(&(this->data->*member));
 	}
 
 	template<typename T>
