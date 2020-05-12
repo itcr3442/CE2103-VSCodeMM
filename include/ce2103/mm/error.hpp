@@ -13,7 +13,8 @@ namespace ce2103::mm
 		memory_error,
 		network_failure,
 		null_dereference,
-		out_of_bounds
+		out_of_bounds,
+		no_remote_session
 	};
 
 	class error_category : public std::error_category

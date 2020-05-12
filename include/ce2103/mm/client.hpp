@@ -52,7 +52,7 @@ namespace ce2103::mm
 		public:
 			static bool initialize(socket client_socket, std::string_view secret);
 
-			static remote_manager& get_instance() noexcept;
+			static remote_manager& get_instance();
 
 			remote_manager(private_t, socket client_socket, std::string_view secret);
 

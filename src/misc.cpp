@@ -99,9 +99,20 @@ namespace ce2103::mm
 		return output;
 	}
 
-	memory_manager& memory_manager::get_default() noexcept
+	memory_manager& memory_manager::get_default(at storage) noexcept
 	{
-		return *default_manager;
+		switch(storage)
+		{
+			case at::local:
+				return garbage_collector::get_instance();
+
+			case at::remote:
+				return remote_manager::get_instance();
+
+			case at::any:
+			default:
+				return *default_manager;
+		}
 	}
 
 	[[noreturn]]
@@ -142,6 +153,9 @@ namespace ce2103::mm
 
 			case error_code::out_of_bounds:
 				return "VSPtr<T[]> index out of bounds";
+
+			case error_code::no_remote_session:
+				return "no remote session is active";
 
 			default:
 				return "unknown error";

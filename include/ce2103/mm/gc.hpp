@@ -68,6 +68,13 @@ namespace ce2103::mm
 			void destroy_all();
 	};
 
+	enum class at
+	{
+		any,
+		local,
+		remote
+	};
+
 	enum class drop_result
 	{
 		reduced,
@@ -78,7 +85,7 @@ namespace ce2103::mm
 	class memory_manager
 	{
 		public:
-			static memory_manager& get_default() noexcept;
+			static memory_manager& get_default(at storage) noexcept;
 
 			template<typename T>
 			std::tuple<std::size_t, allocation*, T*> allocate_of
@@ -180,7 +187,7 @@ namespace ce2103::mm
 		constexpr auto header_size = sizeof(allocation) + padding;
 
 		constexpr void (*destructor)(void* object)
-			= std::is_trivially_destructible_v<T>
+			= !std::is_trivially_destructible_v<T>
 			? static_cast<void(*)(void*)>([](void* object)
 			{
 				static_cast<T*>(object)->~T();

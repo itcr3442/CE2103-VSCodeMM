@@ -145,7 +145,7 @@ namespace ce2103::mm
 	template<typename T>
 	unsafe_ptr<T> allocator<T>::allocate(std::size_t count)
 	{
-		auto& owner = memory_manager::get_default();
+		auto& owner = memory_manager::get_default(at::any);
 		auto [id, resource, base] = owner.allocate_of<T>(count);
 
 		return unsafe_ptr<T>{base, id, &owner};

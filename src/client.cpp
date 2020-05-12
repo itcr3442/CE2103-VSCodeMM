@@ -186,15 +186,26 @@ namespace ce2103::mm
 	{
 		assert(!remote_collector);
 
-		return !remote_collector.emplace
+		bool succeeded = !remote_collector.emplace
 		(
 			private_t{}, std::move(client_socket), secret
 		).client.is_lost();
+
+		if(!succeeded)
+		{
+			remote_collector.reset();
+		}
+
+		return succeeded;
 	}
 
-	remote_manager& remote_manager::get_instance() noexcept
+	remote_manager& remote_manager::get_instance()
 	{
-		assert(remote_collector);
+		if(!remote_collector)
+		{
+			throw std::system_error{error_code::no_remote_session};
+		}
+
 		return *remote_collector;
 	}
 

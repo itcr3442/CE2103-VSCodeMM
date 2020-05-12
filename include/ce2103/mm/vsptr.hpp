@@ -90,8 +90,20 @@ namespace ce2103::mm::_detail
 			template<typename U, typename... ArgumentTypes>
 			static Derived<T> create
 			(
-				std::size_t count, bool always_aray, ArgumentTypes&&... arguments
+				std::size_t count, bool always_array, at storage, ArgumentTypes&&... arguments
 			);
+
+			template<typename U, typename... ArgumentTypes>
+			static inline Derived<T> create
+			(
+				std::size_t count, bool always_array, ArgumentTypes&&... arguments
+			)
+			{
+				return create<U>
+				(
+					count, always_array, at::any, std::forward<ArgumentTypes>(arguments)...
+				);
+			}
 
 			T*              data = nullptr;
 			std::size_t     id;
@@ -339,14 +351,20 @@ namespace ce2103::mm
 		using base::base;
 
 		public:
+			template<typename TargetType>
+			static inline VSPtr New(TargetType target)
+			{
+				return New(at::any, std::move(target));
+			}
+
 			template<typename TargetType, typename = std::enable_if_t<std::is_convertible_v
 			<
 				std::invoke_result_t<TargetType, ParameterTypes...>, ReturnType
 			>>>
-			static inline VSPtr New(TargetType target)
+			static inline VSPtr New(at storage, TargetType target)
 			{
 				using type = _detail::function<TargetType, ReturnType, ParameterTypes...>;
-				return VSPtr::template create<type>(1, false, std::move(target));
+				return VSPtr::template create<type>(1, false, storage, std::move(target));
 			}
 
 			VSPtr(const VSPtr& other) = default;
@@ -392,10 +410,10 @@ namespace ce2103::mm
 	template<typename U, typename... ArgumentTypes>
 	Derived<T> _detail::ptr_base<T, Derived>::create
 	(
-		std::size_t count, bool always_array, ArgumentTypes&&... arguments
+		std::size_t count, bool always_array, at storage, ArgumentTypes&&... arguments
 	)
 	{
-		auto& owner = memory_manager::get_default();
+		auto& owner = memory_manager::get_default(storage);
 		auto [id, resource, data] = owner.allocate_of<U>(count, always_array);
 
 		for(U* element = data; element < data + count; ++element)
