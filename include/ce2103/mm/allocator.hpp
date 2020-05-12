@@ -25,15 +25,15 @@ namespace ce2103::mm
 			template<typename = std::enable_if_t<!std::is_void_v<T>>>
 			static inline unsafe_ptr pointer_to(T& object) noexcept
 			{
-				return unsafe_ptr{&object, 0, nullptr};
+				return unsafe_ptr{&object, 0, at::any};
 			}
 
 			inline unsafe_ptr() noexcept
-			: unsafe_ptr{nullptr, 0, nullptr}
+			: unsafe_ptr{nullptr, 0, at::any}
 			{}
 
 			/* implicit */ inline unsafe_ptr(T* data) noexcept
-			: unsafe_ptr{data, 0, nullptr}
+			: unsafe_ptr{data, 0, at::any}
 			{}
 
 			unsafe_ptr(const unsafe_ptr& other) = default;
@@ -148,7 +148,7 @@ namespace ce2103::mm
 		auto& owner = memory_manager::get_default(at::any);
 		auto [id, resource, base] = owner.allocate_of<T>(count);
 
-		return unsafe_ptr<T>{base, id, &owner};
+		return unsafe_ptr<T>{base, id, owner.get_locality()};
 	}
 }
 

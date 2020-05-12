@@ -56,6 +56,11 @@ namespace ce2103::mm
 
 			remote_manager(private_t, socket client_socket, std::string_view secret);
 
+			virtual inline at get_locality() const noexcept final override
+			{
+				return at::remote;
+			}
+
 			virtual void lift(std::size_t id) final override;
 
 			virtual drop_result drop(std::size_t id) final override;

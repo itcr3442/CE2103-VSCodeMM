@@ -3,6 +3,7 @@
 
 #include <utility>
 #include <cstddef>
+#include <climits>
 #include <algorithm>
 #include <functional>
 #include <type_traits>
@@ -18,7 +19,9 @@ namespace ce2103::mm::_detail
 		friend class ptr_base;
 
 		public:
-			ptr_base() noexcept = default;
+			inline ptr_base() noexcept
+			: storage{at::any}
+			{}
 
 			inline ptr_base(const ptr_base& other) noexcept
 			{
@@ -105,13 +108,25 @@ namespace ce2103::mm::_detail
 				);
 			}
 
-			T*              data = nullptr;
-			std::size_t     id;
-			memory_manager* owner = nullptr;
+			T* data = nullptr;
 
-			inline ptr_base(T* data, std::size_t id, memory_manager* owner) noexcept
-			: data{data}, id{id}, owner{owner}
+			std::size_t id : sizeof(std::size_t) * CHAR_BIT - 2;
+
+			/*!
+			 * at::any indicates no owner.
+			 * Note: This triggers a compiler bug in GCC < 9.3.0.
+			 */
+			at storage : 2;
+
+			inline ptr_base(T* data, std::size_t id, at storage) noexcept
+			: data{data}, id{id}, storage{storage}
 			{}
+
+			inline memory_manager* get_owner() const
+			{
+				return this->storage != at::any
+				     ? &memory_manager::get_default(this->storage) : nullptr;
+			}
 
 			T* access() const;
 
@@ -396,10 +411,10 @@ namespace ce2103::mm
 	template<typename T, template<class> class Derived>
 	Derived<T>& _detail::ptr_base<T, Derived>::operator=(std::nullptr_t) noexcept
 	{
-		if(this->owner != nullptr)
+		if(auto *owner = this->get_owner(); owner != nullptr)
 		{
-			this->owner->drop(this->id);
-			this->owner = nullptr;
+			owner->drop(this->id);
+			this->storage = at::any;
 		}
 
 		this->data = nullptr;
@@ -414,15 +429,19 @@ namespace ce2103::mm
 	)
 	{
 		auto& owner = memory_manager::get_default(storage);
-		auto [id, resource, data] = owner.allocate_of<U>(count, always_array);
+		if(storage == at::any)
+		{
+			storage = owner.get_locality();
+		}
 
+		auto [id, resource, data] = owner.allocate_of<U>(count, always_array);
 		for(U* element = data; element < data + count; ++element)
 		{
 			new(element) U(std::forward<ArgumentTypes>(arguments)...);
 		}
 
 		resource->set_initialized(count);
-		return Derived<T>{data, id, &owner};
+		return Derived<T>{data, id, storage};
 	}
 
 	template<typename T, template<class> class Derived>
@@ -431,9 +450,9 @@ namespace ce2103::mm
 		if(*this == nullptr)
 		{
 			_detail::throw_null_dereference();
-		} else if(this->owner != nullptr)
+		} else if(auto* owner = this->get_owner(); owner != nullptr)
 		{
-			this->owner->probe(this->data);
+			owner->probe(this->data);
 		}
 
 		return this->data;
@@ -448,11 +467,11 @@ namespace ce2103::mm
 	{
 		this->data = other.data;
 		this->id = other.id;
-		this->owner = other.owner;
+		this->storage = other.storage;
 
-		if(this->owner != nullptr)
+		if(auto* owner = this->get_owner(); owner != nullptr)
 		{
-			this->owner->lift(this->id);
+			owner->lift(this->id);
 		}
 
 		return static_cast<Derived<T>&>(*this);
@@ -467,10 +486,10 @@ namespace ce2103::mm
 	{
 		this->data = other.data;
 		this->id = other.id;
-		this->owner = other.owner;
+		this->storage = other.storage;
 
 		other.data = nullptr;
-		other.owner = nullptr;
+		other.storage = at::any;
 
 		return static_cast<Derived<T>&>(*this);
 	}
@@ -514,12 +533,12 @@ namespace ce2103::mm
 		typename PointerType::element_type* new_data
 	) const
 	{
-		if(this->owner != nullptr)
+		if(auto* owner = this->get_owner(); owner != nullptr)
 		{
-			this->owner->lift(this->id);
+			owner->lift(this->id);
 		}
 
-		return PointerType{new_data, this->id, this->owner};
+		return PointerType{new_data, this->id, this->storage};
 	}
 
 	template<typename T>

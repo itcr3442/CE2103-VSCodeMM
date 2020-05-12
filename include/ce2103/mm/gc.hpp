@@ -93,11 +93,13 @@ namespace ce2103::mm
 				std::size_t count, bool always_array = false
 			);
 
+			virtual at get_locality() const noexcept = 0;
+
 			virtual void lift(std::size_t id) = 0;
 
 			virtual drop_result drop(std::size_t id) = 0;
 
-			inline virtual void probe([[maybe_unused]] const void* address)
+			virtual inline void probe([[maybe_unused]] const void* address)
 			{}
 
 		protected:
@@ -118,6 +120,12 @@ namespace ce2103::mm
 			 *        creating it if necessary.
 			 */
 			static garbage_collector& get_instance();
+
+			//! Indicates that this is a local memory manager
+			virtual inline at get_locality() const noexcept final override
+			{
+				return at::local;
+			}
 
 			/*!
 			 * \brief Increments the reference count of the given object.
