@@ -4,11 +4,18 @@
 #include <utility>
 #include <cstddef>
 #include <climits>
+#include <typeinfo>
 #include <algorithm>
 #include <functional>
 #include <type_traits>
 
 #include "ce2103/mm/gc.hpp"
+
+namespace ce2103::mm
+{
+	template<typename T>
+	class VSPtr;
+}
 
 namespace ce2103::mm::_detail
 {
@@ -18,7 +25,22 @@ namespace ce2103::mm::_detail
 		template<typename, template<class> class>
 		friend class ptr_base;
 
+		template<typename>
+		friend class mm::VSPtr;
+
 		public:
+			template<typename U>
+			static inline Derived<T> from_cast(const Derived<U>& source)
+			{
+				static_assert
+				(
+					std::conditional<false, std::void_t<U>, std::false_type>::value,
+					"All casts into this type are ill-formed"
+				);
+
+				return std::declval<Derived<T>>();
+			}
+
 			inline ptr_base() noexcept
 			: storage{at::any}
 			{}
@@ -85,6 +107,12 @@ namespace ce2103::mm::_detail
 			explicit inline operator bool() const noexcept
 			{
 				return this->data != nullptr;
+			}
+
+			template<typename U>
+			explicit inline operator Derived<U>() const
+			{
+				return Derived<U>::from_cast(static_cast<const Derived<T>&>(*this));
 			}
 
 		protected:
@@ -163,6 +191,9 @@ namespace ce2103::mm
 					1, false, std::forward<ArgumentTypes>(arguments)...
 				);
 			}
+
+			template<typename U>
+			static VSPtr from_cast(const VSPtr<U>& source);
 
 			VSPtr(const VSPtr& other) = default;
 
@@ -539,6 +570,14 @@ namespace ce2103::mm
 		}
 
 		return PointerType{new_data, this->id, this->storage};
+	}
+
+	template<typename T>
+	template<typename U>
+	VSPtr<T> VSPtr<T>::from_cast(const VSPtr<U>& source)
+	{
+		static_assert(std::is_polymorphic_v<U> && std::is_class_v<T>);
+		return source.template clone_with<VSPtr<T>>(&dynamic_cast<T&>(*source.operator->()));
 	}
 
 	template<typename T>
