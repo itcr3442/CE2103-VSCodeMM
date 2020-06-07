@@ -50,62 +50,7 @@ export class NodeDependenciesProvider implements vscode.TreeDataProvider<Depende
         
             const toDep = (moduleName: string, version: string): Dependency => {
                 if (this.pathExists(path.join(this.workspaceRoot, 'node_modules', moduleName))) {
-                    return new Dependency (moduleName, version, vscode.TreeItemCollapsibleState.None);
-                }
-            };
-
-            const deps = packageJson.dependencies
-                ? Object.keys(packageJson.dependencies).map(dep =>
-                        toDep(dep, packageJson.devDependencies[dep])
-                    )
-                : [];
-
-            const devDeps = packageJson.devDependencies
-                ? Object.keys(packageJson.devDependencies).map(dep =>
-                        toDep(dep, packageJson.devDependencies[dep])
-                    )
-                : [];
-
-            return deps.concat(devDeps);
-                
-    
-        } else {
-            return [];
-        }
-    }
-
-    private pathExists(p: string): boolean {
-        try {
-            fs.accessSync(p);
-        } catch (err) {
-            return false;
-        }
-        return true;
-    }
-}
-
-class Dependency extends vscode.TreeItem {
-    constructor(
-        public readonly label: string,
-        private version: string,
-        public readonly collapsibleState: vscode.TreeItemCollapsibleState
-    ) {
-        super (label, collapsibleState);
-    }
-
-    get tooltip(): string{
-        return `$(this.label)-$(this.version)`;
-    }
-
-    get description(): string{
-        return this.version;
-    }
-
-    iconPath = {
-        light: path.join(__filename, '..', '..', 'resources', 'light', 'dependency.svg'),
-        dark: path.join(__filename, '..', '..', 'resources', 'dark', 'dependency.svg')
-    };
-}               return new Dependency(
+                    return new Dependency(
                         moduleName,
                         version,
                         vscode.TreeItemCollapsibleState.Collapsed
