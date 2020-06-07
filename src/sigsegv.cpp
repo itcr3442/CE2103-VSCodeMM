@@ -59,6 +59,7 @@ namespace
 		evict
 	};
 
+	[[noreturn]]
 	void throw_result(result which);
 
 	class fault_handler
