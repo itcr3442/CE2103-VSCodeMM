@@ -46,7 +46,7 @@
 	},
 	"scripts": {
 		"vscode:prepublish": "npm run compile",
-		"compile": "tsc -p ./ && ( [[ -d build ]] || mkdir build ) && cd build && cmake ../../ && make && rm -rf libce2103_vscodemm.so ce2103 && cp src/libce2103_vscodemm.so .. && cp -r ../../include/ce2103 ../../deps/common/include/ce2103 ..",
+		"compile": "tsc -p ./ && ( [[ -d build ]] || mkdir build ) && cd build && cmake ../../ && make ce2103_vscodemm && rm -rf libce2103_vscodemm.so ce2103 && cp src/libce2103_vscodemm.so .. && cp -r ../../include/ce2103 ../../deps/common/include/ce2103 ..",
 		"watch": "tsc -watch -p ./"
 	},
 	"devDependencies": {
