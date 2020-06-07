@@ -1,0 +1,63 @@
+{
+	"name": "my-helloworld",
+	"displayName": "my-helloworld",
+	"description": "Just trying out this",
+	"version": "1.0.0",
+	"engines": {
+		"vscode": "^1.22.0"
+	},
+	"activationEvents": [
+		"onView:nodeDependencies",
+		"onCommand:nodeDependencies.helloWorld"
+	],
+	"main": "./out/extension.js",
+	"contributes": {
+		"views": {
+			"explorer": [
+				{
+					"id": "nodeDependencies",
+					"name": "Hello"
+				}
+			]
+		},
+		"commands": [
+			{
+				"command": "nodeDependencies.refreshEntry",
+				"title": "Refresh",
+				"icon": {
+					"light": "resources/light/refresh.svg",
+					"dark": "resources/dark/refresh.svg"
+				}
+			},
+			{
+				"command": "nodeDependencies.helloWorld",
+				"title": "Hello world"
+			}
+		],
+		"menus": {
+			"view/title": [
+				{
+					"command": "nodeDependencies.refreshEntry",
+					"when": "view == nodeDependencies",
+					"group": "navigation"
+				}
+			]
+		}
+	},
+	"scripts": {
+		"vscode:prepublish": "npm run compile",
+		"compile": "tsc -p ./",
+		"watch": "tsc -watch -p ./"
+	},
+	"devDependencies": {
+		"@types/node": "^14.0.9",
+		"@types/vscode": "^1.45.1",
+		"typescript": "^3.9.3",
+		"tslint": "^6.1.2"
+	},
+	"dependencies": {
+		"applicationinsights": "1.7.6",
+		"chokidar": "3.2.3",
+		"graceful-fs": "4.2.4"
+	}
+}
