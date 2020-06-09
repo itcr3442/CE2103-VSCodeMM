@@ -7,7 +7,7 @@ export function activate(cobtext: vscode.ExtensionContext) {
     vscode.commands.registerCommand('nodeDependencies.refreshEntry', () =>
         nodeDependenciesProvider.refresh()
     );
-    vscode.commands.registerCommand('nodeDependencies.helloWorld', () =>
-        nodeDependenciesProvider.message()
+    vscode.commands.registerCommand('nodeDependencies.startExtension', () =>
+        nodeDependenciesProvider.startExtension()
     );
 }
