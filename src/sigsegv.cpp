@@ -4,10 +4,6 @@
  * sparse files.
  */
 
-#if !defined(__i386__) && !defined(__x86_64__)
-	#error This code is x86-specific
-#endif
-
 #include <tuple>
 #include <mutex>
 #include <string>
@@ -43,8 +39,7 @@ namespace
 	//! 256MiB/1TiB of virtual address space for 32-bit/64-bit platforms.
 	constexpr auto REGION_SIZE = sizeof(char) << (16 + 3 * sizeof(void*));
 
-	constexpr auto X86_WRITE_FAULT_BIT = 1 << 1;
-	constexpr auto X86_TRAP_FLAG_BIT   = 1 << 8;
+	constexpr auto WRITE_FAULT_BIT = 1 << 1;
 
 	enum class result
 	{
@@ -75,6 +70,8 @@ namespace
 			void* install(client_session& client);
 
 			result process(operation action, void* address, std::size_t limit = 0);
+
+			void evict(void* page);
 
 		private:
 			struct transaction
@@ -114,8 +111,6 @@ namespace
 	} handler;
 
 	void handle_segmentation_fault(int, ::siginfo_t* signal_info, void* context) noexcept;
-
-	void handle_single_step_trap(int, ::siginfo_t*, void*) noexcept;
 
 	thread_local std::jmp_buf* probe_checkpoint = nullptr;
 
@@ -168,20 +163,14 @@ namespace
 
 		assert(!this->handler_thread.joinable());
 
-		auto set_handler = [](int signal, void (*handler)(int, ::siginfo_t*, void*) noexcept) noexcept
-		{
-			struct ::sigaction action = {};
-			action.sa_flags = SA_SIGINFO;
-			action.sa_sigaction = handler;
-
-			return ::sigaction(signal, &action, nullptr);
-		};
+		struct ::sigaction action = {};
+		action.sa_flags = SA_SIGINFO;
+		action.sa_sigaction = &handle_segmentation_fault;
 
 		this->landing_fd = -1;
 		this->base = MAP_FAILED;
 
-		if(set_handler(SIGSEGV, &handle_segmentation_fault) != -1
-		&& set_handler(SIGTRAP, &handle_single_step_trap) != -1
+		if(::sigaction(SIGSEGV, &action, nullptr) != -1
 		&& (this->landing_fd = ::memfd_create("landing", MFD_CLOEXEC)) != -1
 		&& ::ftruncate(this->landing_fd, REGION_SIZE) != -1
 		&& MAP_FAILED != (this->base = ::mmap
@@ -196,7 +185,6 @@ namespace
 			return this->base;
 		}
 
-		// Calls in-between might interfere with errno
 		int old_errno = errno;
 
 		if(this->base != MAP_FAILED)
@@ -209,8 +197,8 @@ namespace
 			::close(this->landing_fd);
 		}
 
-		set_handler(SIGSEGV, nullptr);
-		set_handler(SIGSEGV, nullptr);
+		action.sa_handler = SIG_DFL;
+		::sigaction(SIGSEGV, &action, nullptr);
 
 		throw std::system_error{old_errno, std::system_category()};
 	}
@@ -441,28 +429,24 @@ namespace
 		return std::nullopt;
 	}
 
-	inline ::gregset_t& registers_from_context(void* context) noexcept
-	{
-		return static_cast<::ucontext_t*>(context)->uc_mcontext.gregs;
-	}
-
-	[[noreturn]]
-	void crash(std::string_view last_words) noexcept
-	{
-		::write(STDERR_FILENO, last_words.data(), last_words.length());
-		std::terminate();
-
-		__builtin_unreachable();
-	}
-
 	void handle_segmentation_fault(int, ::siginfo_t* signal_info, void* context) noexcept
 	{
+		auto terminate = [](std::string_view last_words) noexcept
+		{
+			::write(STDERR_FILENO, last_words.data(), last_words.length());
+			std::terminate();
+
+			__builtin_unreachable();
+		};
+
 		// Stack unwinding through a signal handler triggers undefined behavior
 		try
 		{
-			auto& registers = registers_from_context(context);
+			bool was_write = static_cast<::ucontext_t*>
+			(
+				context
+			)->uc_mcontext.gregs[REG_ERR] & WRITE_FAULT_BIT;
 
-			bool was_write = registers[REG_ERR] & X86_WRITE_FAULT_BIT;
 			if(signal_info->si_code == SEGV_ACCERR)
 			{
 				auto action = was_write ? operation::begin_write : operation::begin_read;
@@ -484,33 +468,13 @@ namespace
 						std::longjmp(*probe_checkpoint, static_cast<int>(response));
 					} else
 					{
-						crash("=== Non-probing remote memory operation failed ===\n");
+						terminate("=== Non-probing remote memory operation failed ===\n");
 					}
-				} else if(was_write)
-				{
-					registers[REG_EFL] |= X86_TRAP_FLAG_BIT;
 				}
 			}
 		} catch(...)
 		{
-			crash("=== Uncaught exception reached the SIGSEGV handler ===\n");
-		}
-	}
-
-	void handle_single_step_trap(int, ::siginfo_t*, void* context) noexcept
-	{
-		registers_from_context(context)[REG_EFL] &= ~X86_TRAP_FLAG_BIT;
-
-		try
-		{
-			if(auto result = handler.process(operation::evict, nullptr);
-			   result != result::success)
-			{
-				crash("=== Failed evict after single-stepping ===");
-			}
-		} catch(...)
-		{
-			crash("=== Uncaught exception reached the SIGTRAP handler ===\n");
+			terminate("=== Uncaught exception reached the SIGSEGV handler ===\n");
 		}
 	}
 }
