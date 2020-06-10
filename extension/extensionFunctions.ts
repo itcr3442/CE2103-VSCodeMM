@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs-extra';
 import * as path from 'path';
+import { promises } from 'fs';
 
 export class ExtensionFunctions implements vscode.TreeDataProvider<Dependency> {
 
@@ -23,9 +24,8 @@ export class ExtensionFunctions implements vscode.TreeDataProvider<Dependency> {
         this._onDidChangeTreeData.fire(undefined);
     }
     
-    addServer(): void{
-        this.c = vscode.window.showInputBox().toString();
-        //vscode.window.showInformationMessage(this.c.toString());
+    async addServer(): Promise<any>{
+        this.c = await vscode.window.showInputBox();
     }
 
     getTreeItem(element: Dependency): vscode.TreeItem {
