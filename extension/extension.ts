@@ -1,13 +1,16 @@
 import * as vscode from 'vscode';
-import {NodeDependenciesProvider} from './nodeDependencies';
+import {ExtensionFunctions} from './extensionFunctions';
 
 export function activate(cobtext: vscode.ExtensionContext) {
-    const nodeDependenciesProvider = new NodeDependenciesProvider(vscode.workspace.rootPath);
-    vscode.window.registerTreeDataProvider('nodeDependencies', nodeDependenciesProvider);
+    const extensionFunctions = new ExtensionFunctions(vscode.workspace.rootPath);
+    vscode.window.registerTreeDataProvider('nodeDependencies', extensionFunctions);
     vscode.commands.registerCommand('nodeDependencies.refreshEntry', () =>
-        nodeDependenciesProvider.refresh()
+        extensionFunctions.refresh()
     );
     vscode.commands.registerCommand('nodeDependencies.startExtension', () =>
-        nodeDependenciesProvider.startExtension()
+        extensionFunctions.startExtension()
+    );
+    vscode.commands.registerCommand('nodeDependencies.addServer', () => 
+        extensionFunctions.addServer()
     );
 }

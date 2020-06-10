@@ -30,6 +30,14 @@
 				}
 			},
 			{
+				"command": "nodeDependencies.addServer",
+				"title": "Add",
+				"icon": {
+					"light": "resources/light/refresh.svg",
+					"dark": "resources/dark/refresh.svg"
+				}
+			},
+			{
 				"command": "nodeDependencies.startExtension",
 				"title": "Start"
 			}
@@ -38,6 +46,11 @@
 			"view/title": [
 				{
 					"command": "nodeDependencies.refreshEntry",
+					"when": "view == nodeDependencies",
+					"group": "navigation"
+				},
+				{
+					"command": "nodeDependencies.addServer",
 					"when": "view == nodeDependencies",
 					"group": "navigation"
 				}

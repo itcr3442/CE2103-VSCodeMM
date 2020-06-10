@@ -2,24 +2,30 @@ import * as vscode from 'vscode';
 import * as fs from 'fs-extra';
 import * as path from 'path';
 
-export class NodeDependenciesProvider implements vscode.TreeDataProvider<Dependency> {
+export class ExtensionFunctions implements vscode.TreeDataProvider<Dependency> {
 
     private _onDidChangeTreeData: vscode.EventEmitter<Dependency | undefined> = new vscode.EventEmitter<Dependency | undefined>();
 	readonly onDidChangeTreeData: vscode.Event<Dependency | undefined> = this._onDidChangeTreeData.event;
 
     constructor(private workspaceRoot: string) {}
 
-    refresh(): void {
-        this._onDidChangeTreeData.fire(undefined);
-    }
-
     callback(err): void {
         if (err) throw err;
     }
-
+    c: string;
     startExtension(): void{
         fs.copy('vscodemm', this.workspaceRoot, this.callback);
         vscode.window.showInformationMessage('Extensión iniciada');
+        vscode.window.showInformationMessage(""+this.c);
+    }
+
+    refresh(): void {
+        this._onDidChangeTreeData.fire(undefined);
+    }
+    
+    addServer(): void{
+        this.c = vscode.window.showInputBox().toString();
+        //vscode.window.showInformationMessage(this.c.toString());
     }
 
     getTreeItem(element: Dependency): vscode.TreeItem {
