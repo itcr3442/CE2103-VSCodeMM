@@ -1,6 +1,5 @@
 import * as vscode from 'vscode';
-import * as fs from 'fs';
-import * as fsE from 'fs-extra';
+import * as fs from 'fs-extra';
 import * as path from 'path';
 
 export class NodeDependenciesProvider implements vscode.TreeDataProvider<Dependency> {
@@ -16,12 +15,10 @@ export class NodeDependenciesProvider implements vscode.TreeDataProvider<Depende
 
     callback(err): void {
         if (err) throw err;
-        vscode.window.showInformationMessage("Connected!");
     }
 
-    message(): void{
-        //vscode.window.showInformationMessage('Extensión iniciada');
-        fsE.copy('src', this.workspaceRoot, this.callback);
+    startExtension(): void{
+        fs.copy('vscodemm', this.workspaceRoot, this.callback);
         vscode.window.showInformationMessage('Extensión iniciada');
     }
 
@@ -118,10 +115,5 @@ class Dependency extends vscode.TreeItem {
     iconPath = {
         light: path.join(__filename, '..', '..', 'resources', 'light', 'dependency.svg'),
         dark: path.join(__filename, '..', '..', 'resources', 'dark', 'dependency.svg')
-    };
-
-    directoryPath = {
-        so: path.join(__filename, '..', '..', 'libce2103_vscodemm.so'),
-        dir: path.join(__filename, '..', '..', 'ce2103')
     };
 }

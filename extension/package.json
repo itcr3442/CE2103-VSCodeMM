@@ -8,7 +8,7 @@
 	},
 	"activationEvents": [
 		"onView:nodeDependencies",
-		"onCommand:nodeDependencies.helloWorld"
+		"onCommand:nodeDependencies.startExtension"
 	],
 	"main": "./out/extension.js",
 	"contributes": {
@@ -30,8 +30,8 @@
 				}
 			},
 			{
-				"command": "nodeDependencies.helloWorld",
-				"title": "Hello world"
+				"command": "nodeDependencies.startExtension",
+				"title": "Start"
 			}
 		],
 		"menus": {
