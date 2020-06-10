@@ -479,9 +479,14 @@ namespace ce2103::mm
 		}
 	}
 
-	void remote_manager::evict(std::size_t id)
+	allocation& remote_manager::get_base_of(std::size_t id)
 	{
-		void* address = this->allocation_base_for(id);
+		return *reinterpret_cast<allocation*>(static_cast<char*>(this->trap_base) + PAGE_SIZE * id);
+	}
+
+	void remote_manager::do_evict(std::size_t id)
+	{
+		void* address = &this->get_base_of(id);
 		if(auto result = handler.process(operation::evict, address);
 		   result != result::success)
 		{
@@ -494,11 +499,6 @@ namespace ce2103::mm
 		this->trap_base = handler.install(this->client);
 	}
 
-	void* remote_manager::allocation_base_for(std::size_t id) noexcept
-	{
-		return static_cast<char*>(this->trap_base) + PAGE_SIZE * id;
-	}
-
 	std::size_t remote_manager::get_part_size() const noexcept
 	{
 		return PAGE_SIZE;
@@ -506,7 +506,7 @@ namespace ce2103::mm
 
 	void remote_manager::wipe(std::size_t id, std::size_t size)
 	{
-		void* address = this->allocation_base_for(id);
+		void* address = &this->get_base_of(id);
 		if(auto result = handler.process(operation::wipe, address, size);
 		   result != result::success)
 		{

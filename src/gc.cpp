@@ -6,16 +6,20 @@
 #include <cassert>
 #include <cstddef>
 #include <iostream>
+#include <stdexcept>
+
+#include "ce2103/rtti.hpp"
 
 #include "ce2103/mm/gc.hpp"
+#include "ce2103/mm/debug.hpp"
+
+using ce2103::mm::at;
 
 namespace ce2103::mm
 {
 	void allocation::destroy_all()
 	{
-		char* element_base = reinterpret_cast<char*>(this) + sizeof(allocation)
-		                   + this->payload_type.padding;
-
+		auto* element_base = static_cast<char*>(this->get_payload_base());
 		if(this->payload_type.destructor != nullptr)
 		{
 			for(std::size_t i = 0; i < this->count; ++i)
@@ -26,47 +30,41 @@ namespace ce2103::mm
 		}
 	}
 
+	std::string allocation::make_representation()
+	{
+		std::string output;
+		this->payload_type.represent(this->get_payload_base(), this->count, output);
+
+		return output;
+	}
+
+	void memory_manager::lift(std::size_t id)
+	{
+		this->do_lift(id);
+		_detail::memory_debug_log("lift", id, this->get_locality());
+	}
+
+	drop_result memory_manager::drop(std::size_t id)
+	{
+		auto result = this->do_drop(id);
+		_detail::memory_debug_log("drop", id, this->get_locality());
+
+		return result;
+	}
+
+	void memory_manager::evict(std::size_t id)
+	{
+		auto representation = this->get_base_of(id).make_representation();
+		_detail::memory_debug_log("write", id, this->get_locality(), "value", std::move(representation));
+
+		this->do_evict(id);
+	}
+
 	garbage_collector& garbage_collector::get_instance()
 	{
 		//! Per the Standard, initialization will occur on the first call.
 		static garbage_collector gc;
 		return gc;
-	}
-
-	void garbage_collector::lift(std::size_t id)
-	{
-		std::lock_guard lock{this->mutex};
-
-		auto* pair = this->allocations.search(id);
-		assert(pair != nullptr);
-
-		++pair->first;
-	}
-
-	drop_result garbage_collector::drop(std::size_t id)
-	{
-		std::lock_guard lock{this->mutex};
-
-		auto* pair = this->allocations.search(id);
-		assert(pair != nullptr && pair->first > 0);
-
-		switch(--pair->first)
-		{
-			case 1:
-				return drop_result::hanging;
-
-			case 0:
-				return drop_result::lost;
-
-			default:
-				return drop_result::reduced;
-		}
-	}
-
-	void garbage_collector::evict(std::size_t id)
-	{\
-		static_cast<void>(id);
-		//TODO
 	}
 
 	void garbage_collector::require_contiguous_ids(std::size_t ids) noexcept
@@ -92,20 +90,18 @@ namespace ce2103::mm
 		this->next_id = test_from;
 	}
 
-	std::pair<std::size_t, void*> garbage_collector::allocate(std::size_t size)
+	allocation& garbage_collector::get_base_of(std::size_t id)
 	{
-		void* base = ::operator new(size);
-
 		std::lock_guard lock{this->mutex};
 
-		std::size_t id;
-		do
+		auto* count_base = this->allocations.search(id);
+		if(count_base == nullptr)
 		{
-			id = this->next_id++;
-		} while(this->allocations.search(id) != nullptr);
+			throw std::invalid_argument{"ID is unassigned"};
+		}
 
-		this->allocations.insert(id, std::make_pair(1, static_cast<allocation*>(base)));
-		return std::make_pair(id, base);
+		auto [count, base] = *count_base;
+		return *base;
 	}
 
 	garbage_collector::garbage_collector()
@@ -125,6 +121,52 @@ namespace ce2103::mm
 		}
 
 		terminated.join();
+	}
+
+	std::size_t garbage_collector::allocate(std::size_t size)
+	{
+		void* base = ::operator new(size);
+
+		std::lock_guard lock{this->mutex};
+
+		std::size_t id;
+		do
+		{
+			id = this->next_id++;
+		} while(this->allocations.search(id) != nullptr);
+
+		this->allocations.insert(id, std::make_pair(1, static_cast<allocation*>(base)));
+		return id;
+	}
+
+	void garbage_collector::do_lift(std::size_t id)
+	{
+		std::lock_guard lock{this->mutex};
+
+		auto* pair = this->allocations.search(id);
+		assert(pair != nullptr);
+
+		++pair->first;
+	}
+
+	drop_result garbage_collector::do_drop(std::size_t id)
+	{
+		std::lock_guard lock{this->mutex};
+
+		auto* pair = this->allocations.search(id);
+		assert(pair != nullptr && pair->first > 0);
+
+		switch(--pair->first)
+		{
+			case 1:
+				return drop_result::hanging;
+
+			case 0:
+				return drop_result::lost;
+
+			default:
+				return drop_result::reduced;
+		}
 	}
 
 	void garbage_collector::main_loop()
@@ -184,8 +226,7 @@ namespace ce2103::mm
 					std::cerr << 's';
 				}
 
-				auto type_name = header->get_demangled_type_name();
-				std::cerr << " to [" << id << ": " << type_name << "]\n";
+				std::cerr << " to [" << id << ": " << demangle(header->get_type()) << "]\n";
 			}
 
 			std::cerr << "=== Memory has been leaked ===\n";

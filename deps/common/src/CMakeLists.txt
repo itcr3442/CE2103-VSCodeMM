@@ -1,4 +1,4 @@
-add_library(ce2103_common STATIC network.cpp hash.cpp)
+add_library(ce2103_common STATIC network.cpp hash.cpp rtti.cpp)
 add_library(ce2103::common ALIAS ce2103_common)
 
 target_include_directories(ce2103_common PUBLIC "${PROJECT_SOURCE_DIR}/include")

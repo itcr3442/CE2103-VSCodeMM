@@ -1,33 +1,12 @@
 #include <string>
 #include <system_error>
 
-// GNU extension
-#include <cxxabi.h>
-
 #include "ce2103/mm/gc.hpp"
 #include "ce2103/mm/error.hpp"
 #include "ce2103/mm/vsptr.hpp"
 
 namespace ce2103::mm
 {
-	std::string allocation::get_demangled_type_name() const
-	{
-		std::string output;
-
-		const char* mangled = this->get_mangled_type_name();
-		if(char* demangled = ::abi::__cxa_demangle(mangled, nullptr, nullptr, nullptr);
-		   demangled != nullptr)
-		{
-			output = demangled;
-			std::free(demangled);
-		} else
-		{
-			output = "(\?\?\?)";
-		}
-
-		return output;
-	}
-
 	[[noreturn]]
 	void _detail::throw_null_dereference()
 	{

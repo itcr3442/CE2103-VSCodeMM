@@ -215,7 +215,27 @@ namespace ce2103::mm
 		this->install_trap_region();
 	}
 
-	void remote_manager::lift(std::size_t id)
+	[[noreturn]]
+	void remote_manager::throw_network_failure()
+	{
+		throw std::system_error{error_code::network_failure};
+	}
+
+	std::size_t remote_manager::allocate(std::size_t size)
+	{
+		std::size_t part_size = this->get_part_size();
+
+		auto id = this->client.allocate(part_size, size / part_size, size % part_size);
+		if(!id)
+		{
+			throw_network_failure();
+		}
+
+		this->wipe(*id, std::min(size, part_size));
+		return *id;
+	}
+
+	void remote_manager::do_lift(std::size_t id)
 	{
 		if(!this->client.lift(id))
 		{
@@ -223,7 +243,7 @@ namespace ce2103::mm
 		}
 	}
 
-	drop_result remote_manager::drop(std::size_t id)
+	drop_result remote_manager::do_drop(std::size_t id)
 	{
 		auto result = this->client.drop(id);
 		if(!result)
@@ -238,13 +258,13 @@ namespace ce2103::mm
 
 			case drop_result::hanging:
 			{
-				auto* header = static_cast<allocation*>(this->allocation_base_for(id));
-				this->probe(header, true);
+				allocation& header = this->get_base_of(id);
+				this->probe(&header, true);
 
-				std::size_t total_size = header->get_total_size();
+				std::size_t total_size = header.get_total_size();
 				std::size_t parts = (total_size - 1) / this->get_part_size() + 1;
 
-				dispose(*header);
+				dispose(header);
 
 				for(std::size_t part = id; part < id + parts; ++part)
 				{
@@ -263,25 +283,5 @@ namespace ce2103::mm
 			default:
 				assert(false);
 		}
-	}
-
-	[[noreturn]]
-	void remote_manager::throw_network_failure()
-	{
-		throw std::system_error{error_code::network_failure};
-	}
-
-	std::pair<std::size_t, void*> remote_manager::allocate(std::size_t size)
-	{
-		std::size_t part_size = this->get_part_size();
-
-		auto id = this->client.allocate(part_size, size / part_size, size % part_size);
-		if(!id)
-		{
-			throw_network_failure();
-		}
-
-		this->wipe(*id, std::min(size, part_size));
-		return std::make_pair(*id, this->allocation_base_for(*id));
 	}
 }
