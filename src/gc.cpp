@@ -7,6 +7,8 @@
 #include <cstddef>
 #include <iostream>
 
+#include "ce2103/rtti.hpp"
+
 #include "ce2103/mm/gc.hpp"
 
 namespace ce2103::mm
@@ -184,8 +186,7 @@ namespace ce2103::mm
 					std::cerr << 's';
 				}
 
-				auto type_name = header->get_demangled_type_name();
-				std::cerr << " to [" << id << ": " << type_name << "]\n";
+				std::cerr << " to [" << id << ": " << demangle(header->get_type()) << "]\n";
 			}
 
 			std::cerr << "=== Memory has been leaked ===\n";

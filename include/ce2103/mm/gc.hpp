@@ -25,12 +25,10 @@ namespace ce2103::mm
 				this->count = count;
 			}
 
-			inline const char* get_mangled_type_name() const noexcept
+			inline const std::type_info& get_type() const noexcept
 			{
-				return this->payload_type.rtti.name();
+				return this->payload_type.rtti;
 			}
-
-			std::string get_demangled_type_name() const;
 
 			inline std::size_t get_total_size() const noexcept
 			{
