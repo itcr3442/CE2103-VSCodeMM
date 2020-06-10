@@ -1,6 +1,7 @@
 #ifndef CE2103_MM_VSPTR_HPP
 #define CE2103_MM_VSPTR_HPP
 
+#include <ostream>
 #include <utility>
 #include <cstddef>
 #include <climits>
@@ -15,6 +16,9 @@ namespace ce2103::mm
 {
 	template<typename T>
 	class VSPtr;
+
+	template<typename T>
+	std::ostream& operator<<(std::ostream& stream, const VSPtr<T>& pointer);
 }
 
 namespace ce2103::mm::_detail
@@ -156,7 +160,7 @@ namespace ce2103::mm::_detail
 				     ? &memory_manager::get_default(this->storage) : nullptr;
 			}
 
-			T* access() const;
+			T* access(bool for_write = false) const;
 
 			template<typename U, template<class> class OtherDerived>
 			Derived<T>& initialize(const ptr_base<U, OtherDerived>& other);
@@ -182,7 +186,41 @@ namespace ce2103::mm
 	{
 		using _detail::ptr_base<T, VSPtr>::ptr_base;
 
+		friend std::ostream& mm::operator<< <T>(std::ostream&, const VSPtr<T>&);
+
 		public:
+			class dereferenced
+			{
+				friend class VSPtr<T>;
+
+				public:
+					dereferenced(const dereferenced& other) noexcept = delete;
+					dereferenced(dereferenced&& other) noexcept = default;
+
+					dereferenced& operator=(const dereferenced& other) = delete;
+					dereferenced& operator=(dereferenced&& other) = delete;
+
+					template<typename U, typename = std::enable_if_t<std::is_assignable_v<T&, U&&>>>
+					const dereferenced&& operator=(U&& value) const &&;
+
+					inline VSPtr<T> operator&() const &&
+					{
+						return this->pointer;
+					}
+
+					/* implicit */ inline operator T&() const && noexcept
+					{
+						return *this->pointer.data;
+					}
+
+				private:
+					const VSPtr<T>& pointer;
+
+					inline dereferenced(const VSPtr<T>& pointer)
+					: pointer{pointer}
+					{}
+			};
+
 			template<typename... ArgumentTypes>
 			static inline VSPtr New(ArgumentTypes&&... arguments)
 			{
@@ -238,12 +276,12 @@ namespace ce2103::mm
 				return this->access();
 			}
 
-			inline T& operator*() const
+			inline dereferenced operator*() const
 			{
-				return *this->access();
+				return dereferenced{(this->access(), *this)};
 			}
 
-			inline T& operator&() const
+			inline dereferenced operator&() const
 			{
 				return **this;
 			}
@@ -352,84 +390,6 @@ namespace ce2103::mm
 
 namespace ce2103::mm::_detail
 {
-	template<typename ReturnType, typename... ParameterTypes>
-	struct function_base
-	{
-		using type = ReturnType(ParameterTypes...);
-
-		virtual ReturnType operator()(ParameterTypes... parameters) = 0;
-	};
-
-	template<typename TargetType, typename ReturnType, typename... ParameterTypes>
-	struct function final : function_base<ReturnType, ParameterTypes...>
-	{
-		TargetType target;
-
-		inline function(TargetType target)
-		: target{std::move(target)}
-		{}
-
-		virtual inline ReturnType operator()(ParameterTypes... arguments) final override
-		{
-			return std::invoke(this->target, std::forward<ParameterTypes>(arguments)...);
-		}
-	};
-
-	template<class FunctionType> 
-	using function_ptr = VSPtr<typename FunctionType::type>;
-}
-
-namespace ce2103::mm
-{
-	template<typename ReturnType, typename... ParameterTypes>
-	class VSPtr<ReturnType(ParameterTypes...)> : public _detail::ptr_base
-	<
-		_detail::function_base<ReturnType, ParameterTypes...>, _detail::function_ptr
-	>
-	{
-		private:
-			using base = _detail::ptr_base
-			<
-				_detail::function_base<ReturnType, ParameterTypes...>,
-				_detail::function_ptr
-			>;
-
-		using base::base;
-
-		public:
-			template<typename TargetType>
-			static inline VSPtr New(TargetType target)
-			{
-				return New(at::any, std::move(target));
-			}
-
-			template<typename TargetType, typename = std::enable_if_t<std::is_convertible_v
-			<
-				std::invoke_result_t<TargetType, ParameterTypes...>, ReturnType
-			>>>
-			static inline VSPtr New(at storage, TargetType target)
-			{
-				using type = _detail::function<TargetType, ReturnType, ParameterTypes...>;
-				return VSPtr::template create<type>(1, false, storage, std::move(target));
-			}
-
-			VSPtr(const VSPtr& other) = default;
-
-			VSPtr(VSPtr&& other) = default;
-
-			VSPtr& operator=(const VSPtr& other) = default;
-
-			VSPtr& operator=(VSPtr&& other) = default;
-
-			inline ReturnType operator()(ParameterTypes... arguments)
-			{
-				return (*this->access())(std::forward<ParameterTypes>(arguments)...);
-			}
-	};
-}
-
-namespace ce2103::mm::_detail
-{
 	[[noreturn]]
 	void throw_null_dereference();
 
@@ -472,18 +432,20 @@ namespace ce2103::mm
 		}
 
 		resource->set_initialized(count);
+		owner.evict(id);
+
 		return Derived<T>{data, id, storage};
 	}
 
 	template<typename T, template<class> class Derived>
-	T* _detail::ptr_base<T, Derived>::access() const
+	T* _detail::ptr_base<T, Derived>::access(bool for_write) const
 	{
 		if(*this == nullptr)
 		{
 			_detail::throw_null_dereference();
 		} else if(auto* owner = this->get_owner(); owner != nullptr)
 		{
-			owner->probe(this->data);
+			owner->probe(this->data, for_write);
 		}
 
 		return this->data;
@@ -570,6 +532,32 @@ namespace ce2103::mm
 		}
 
 		return PointerType{new_data, this->id, this->storage};
+	}
+
+	template<typename T>
+	std::ostream& operator<<(std::ostream& stream, const VSPtr<T>& pointer)
+	{
+		//TODO: Nice output
+		return stream << pointer.data;
+	}
+
+	template<typename T>
+	template<typename U, typename>
+	const typename VSPtr<T>::dereferenced&& VSPtr<T>::dereferenced::operator=(U&& value) const &&
+	{
+		auto* owner = this->pointer.get_owner();
+		if(owner != nullptr)
+		{
+			owner->probe(this->pointer.data, true);
+		}
+
+		*this->pointer.data = std::forward<U>(value);
+		if(owner != nullptr)
+		{
+			owner->evict(this->pointer.id);
+		}
+
+		return std::move(*this);
 	}
 
 	template<typename T>

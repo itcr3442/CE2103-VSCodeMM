@@ -1,4 +1,4 @@
-add_library(ce2103_vscodemm SHARED gc.cpp session.cpp client.cpp sigsegv.cpp misc.cpp)
+add_library(ce2103_vscodemm SHARED gc.cpp session.cpp client.cpp sigsegv.cpp init.cpp misc.cpp)
 add_library(ce2103::mm ALIAS ce2103_vscodemm)
 
 target_include_directories(ce2103_vscodemm PUBLIC "${PROJECT_SOURCE_DIR}/include")

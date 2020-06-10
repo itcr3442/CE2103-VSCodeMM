@@ -239,11 +239,11 @@ namespace ce2103::mm
 			case drop_result::hanging:
 			{
 				auto* header = static_cast<allocation*>(this->allocation_base_for(id));
+				this->probe(header, true);
 
 				std::size_t total_size = header->get_total_size();
 				std::size_t parts = (total_size - 1) / this->get_part_size() + 1;
 
-				this->probe(header);
 				dispose(*header);
 
 				for(std::size_t part = id; part < id + parts; ++part)

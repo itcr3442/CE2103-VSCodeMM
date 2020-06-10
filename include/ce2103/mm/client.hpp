@@ -65,7 +65,9 @@ namespace ce2103::mm
 
 			virtual drop_result drop(std::size_t id) final override;
 
-			virtual void probe(const void* address) final override;
+			virtual void probe(const void* address, bool for_write = false) final override;
+
+			virtual void evict(std::size_t id) final override;
 
 		private:
 			client_session client;
@@ -83,8 +85,6 @@ namespace ce2103::mm
 			std::size_t get_part_size() const noexcept;
 
 			void wipe(std::size_t id, std::size_t size);
-
-			void evict(std::size_t id);
 	};
 }
 
