@@ -11,7 +11,26 @@
 #include <type_traits>
 #include <condition_variable>
 
+#include "ce2103/rtti.hpp"
 #include "ce2103/hash_map.hpp"
+
+#include "ce2103/mm/debug.hpp"
+
+namespace ce2103::mm
+{
+	enum class at
+	{
+		any,
+		local,
+		remote
+	};
+}
+
+namespace ce2103::mm::_detail
+{
+	template<typename... PairTypes>
+	void memory_debug_log(const char* operation, std::size_t id, at locality, PairTypes&&... pairs);
+}
 
 namespace ce2103::mm
 {
@@ -36,6 +55,14 @@ namespace ce2103::mm
 				       + this->payload_type.size * this->count;
 			}
 
+			inline void* get_payload_base() const noexcept
+			{
+				return   const_cast<char*>(reinterpret_cast<const char*>(this))
+				       + sizeof(allocation) + this->payload_type.padding;
+			}
+
+			std::string make_representation();
+
 		private:
 			struct type final
 			{
@@ -47,12 +74,16 @@ namespace ce2103::mm
 
 				std::size_t padding;
 
+				void (*const represent)(void* object, std::size_t count, std::string& output);
+
 				inline constexpr type
 				(
-					const std::type_info& rtti, void (*const destructor)(void*),
-					std::size_t size, std::size_t padding
+					const std::type_info& rtti, void (*destructor)(void*),
+					std::size_t size, std::size_t padding, 
+					void (*represent)(void*, std::size_t, std::string&)
 				) noexcept
-				: rtti{rtti}, destructor{destructor}, size{size}, padding{padding}
+				: rtti{rtti}, destructor{destructor}, size{size},
+				  padding{padding}, represent{represent}
 				{}
 			};
 
@@ -64,13 +95,6 @@ namespace ce2103::mm
 			{}
 
 			void destroy_all();
-	};
-
-	enum class at
-	{
-		any,
-		local,
-		remote
 	};
 
 	enum class drop_result
@@ -91,11 +115,13 @@ namespace ce2103::mm
 				std::size_t count, bool always_array = false
 			);
 
+			void lift(std::size_t id);
+
+			drop_result drop(std::size_t id);
+
+			void evict(std::size_t id);
+
 			virtual at get_locality() const noexcept = 0;
-
-			virtual void lift(std::size_t id) = 0;
-
-			virtual drop_result drop(std::size_t id) = 0;
 
 			virtual inline void probe
 			(
@@ -104,7 +130,7 @@ namespace ce2103::mm
 			)
 			{}
 
-			virtual void evict(std::size_t id) = 0;
+			virtual allocation& get_base_of(std::size_t id) = 0;
 
 		protected:
 			inline void dispose(allocation& resource)
@@ -113,7 +139,14 @@ namespace ce2103::mm
 			}
 
 		private:
-			virtual std::pair<std::size_t, void*> allocate(std::size_t size) = 0;
+			virtual std::size_t allocate(std::size_t size) = 0;
+
+			virtual void do_lift(std::size_t id) = 0;
+
+			virtual drop_result do_drop(std::size_t id) = 0;
+
+			virtual inline void do_evict([[maybe_unused]] std::size_t id)
+			{}
 	};
 
 	class garbage_collector : public memory_manager
@@ -131,24 +164,8 @@ namespace ce2103::mm
 				return at::local;
 			}
 
-			/*!
-			 * \brief Increments the reference count of the given object.
-			 *
-			 * \return Altered reference count
-			 */
-			virtual void lift(std::size_t id) final override;
-
-			/*!
-			 * \brief Decrements the reference count of the given object.
-			 *        If the count reaches zero, the object will be collected
-			 *        in the future by the GC.
-			 *
-			 * \return Result of the drop operation
-			 */
-			virtual drop_result drop(std::size_t id) final override;
-
-			//! Hints the end of a write operation.
-			virtual void evict(std::size_t id) final override;
+			//! Returns the allocation header for a given ID
+			virtual allocation& get_base_of(std::size_t id) final override;
 
 			/*!
 			 * \brief Enforces that, if no other operation is performed,
@@ -184,13 +201,54 @@ namespace ce2103::mm
 			 *
 			 * \param size region size, in bytes
 			 *
-			 * \return ID-base pair
+			 * \return new ID
 			 */
-			virtual std::pair<std::size_t, void*> allocate(std::size_t size) final override;
+			virtual std::size_t allocate(std::size_t size) final override;
+
+			/*!
+			 * \brief Increments the reference count of the given object.
+			 *
+			 * \return Altered reference count
+			 */
+			virtual void do_lift(std::size_t id) final override;
+
+			/*!
+			 * \brief Decrements the reference count of the given object.
+			 *        If the count reaches zero, the object will be collected
+			 *        in the future by the GC.
+			 *
+			 * \return Result of the drop operation
+			 */
+			virtual drop_result do_drop(std::size_t id) final override;
 
 			//! Main GC loop.
 			void main_loop();
 	};
+
+	template<typename... PairTypes>
+	void _detail::memory_debug_log
+	(
+		const char* operation, std::size_t id, at locality, PairTypes&&... pairs
+	)
+	{
+		const char* locality_name;
+		switch(locality)
+		{
+			case at::local:
+				locality_name = "local";
+				break;
+
+			case at::remote:
+				locality_name = "remote";
+				break;
+
+			default:
+				locality_name = "unknown";
+				break;
+		}
+
+		debug_log(operation, "id", id, "at", locality_name, std::forward<PairTypes>(pairs)...);
+	}
 
 	template<typename T>
 	std::tuple<std::size_t, allocation*, T*> memory_manager::allocate_of
@@ -209,16 +267,52 @@ namespace ce2103::mm
 			})
 			: nullptr;
 
+		constexpr void (*represent_single)(void*, std::size_t, std::string&) = []
+		(
+			void*, std::size_t, std::string& output
+		)
+		{
+			//TODO
+			output.append("{?}");
+		};
+
 		using type = allocation::type;
 
-		static constexpr type type_of_single{typeid(T), destructor, sizeof(T), padding};
-		static constexpr type type_of_array{typeid(T[]), destructor, sizeof(T), padding};
+		static constexpr type type_of_single
+		{
+			typeid(T), destructor, sizeof(T), padding, represent_single
+		};
 
-		auto [id, base] = this->allocate(header_size + sizeof(T) * count);
+		static constexpr type type_of_array
+		{
+			typeid(T[]), destructor, sizeof(T), padding,
+			[](void* object, std::size_t count, std::string& output)
+			{
+				output.push_back('[');
+				for(std::size_t i = 0; i < count; ++i)
+				{
+					if(i > 0)
+					{
+						output.push_back(',');
+					}
+
+					represent_single(static_cast<T*>(object) + i, 1, output);
+				}
+
+				output.push_back(']');
+			}
+		};
+
+		std::size_t id = this->allocate(header_size + sizeof(T) * count);
+		allocation* base = &this->get_base_of(id);
+
 		new(base) allocation{count == 1 && !always_array ? type_of_single : type_of_array};
+		_detail::memory_debug_log
+		(
+			"alloc", id, this->get_locality(), "type", demangle(base->get_type())
+		);
 
-		auto* first_element = reinterpret_cast<T*>(static_cast<char*>(base) + header_size);
-		return std::make_tuple(id, static_cast<allocation*>(base), first_element);
+		return std::make_tuple(id, base, static_cast<T*>(base->get_payload_base()));
 	}
 }
 

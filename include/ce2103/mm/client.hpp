@@ -61,13 +61,9 @@ namespace ce2103::mm
 				return at::remote;
 			}
 
-			virtual void lift(std::size_t id) final override;
-
-			virtual drop_result drop(std::size_t id) final override;
-
 			virtual void probe(const void* address, bool for_write = false) final override;
 
-			virtual void evict(std::size_t id) final override;
+			virtual allocation& get_base_of(std::size_t id) final override;
 
 		private:
 			client_session client;
@@ -76,11 +72,15 @@ namespace ce2103::mm
 			[[noreturn]]
 			static void throw_network_failure();
 
-			virtual std::pair<std::size_t, void*> allocate(std::size_t size) final override;
+			virtual std::size_t allocate(std::size_t size) final override;
+
+			virtual void do_lift(std::size_t id) final override;
+
+			virtual drop_result do_drop(std::size_t id) final override;
+
+			virtual void do_evict(std::size_t id) final override;
 
 			void install_trap_region();
-
-			void* allocation_base_for(std::size_t id) noexcept;
 
 			std::size_t get_part_size() const noexcept;
 

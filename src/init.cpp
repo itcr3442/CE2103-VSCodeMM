@@ -166,6 +166,8 @@ namespace ce2103::mm
 				{
 					std::cerr << "=== Remote setup failed, falling back to local services ===\n";
 				}
+
+				_detail::debug_log("connect", "success", connected);
 			}
 
 			if(!connected)
