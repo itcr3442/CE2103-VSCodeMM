@@ -282,7 +282,9 @@ namespace ce2103::mm
 				output.append(std::to_string(object));
 			} else if constexpr(std::is_same_v<std::string, std::remove_cv_t<T>>)
 			{
+				output.push_back('"');
 				output.append(object);
+				output.push_back('"');
 			} else
 			{
 				output.append("{...}");
