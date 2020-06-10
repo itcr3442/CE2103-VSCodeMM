@@ -1,7 +1,6 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs-extra';
 import * as path from 'path';
-import { promises } from 'fs';
 
 export class ExtensionFunctions implements vscode.TreeDataProvider<Dependency> {
 
@@ -13,11 +12,19 @@ export class ExtensionFunctions implements vscode.TreeDataProvider<Dependency> {
     callback(err): void {
         if (err) throw err;
     }
-    c: string;
+
+    serverDir: string;
+    serverPort: string;
+    serverPass: string;
+    serverName: string;
+
     startExtension(): void{
         fs.copy('vscodemm', this.workspaceRoot, this.callback);
         vscode.window.showInformationMessage('Extensión iniciada');
-        vscode.window.showInformationMessage(""+this.c);
+        vscode.window.showInformationMessage("Dir: "+this.serverDir);
+        vscode.window.showInformationMessage("Port: "+this.serverPort);
+        vscode.window.showInformationMessage("Pass: "+this.serverPass);
+        vscode.window.showInformationMessage("Name: "+this.serverName);
     }
 
     refresh(): void {
@@ -25,8 +32,13 @@ export class ExtensionFunctions implements vscode.TreeDataProvider<Dependency> {
     }
     
     async addServer(): Promise<any>{
-        this.c = await vscode.window.showInputBox();
+        this.serverDir = await vscode.window.showInputBox();
+        this.serverPort = await vscode.window.showInputBox();
+        this.serverPass = await vscode.window.showInputBox();
+        this.serverName = await vscode.window.showInputBox();
     }
+
+    
 
     getTreeItem(element: Dependency): vscode.TreeItem {
         return element;
