@@ -9,6 +9,8 @@ export class ExtensionFunctions implements vscode.TreeDataProvider<Dependency> {
 
     constructor(private workspaceRoot: string) {}
 
+
+    //To start extension
     callback(err): void {
         if (err) throw err;
     }
@@ -27,10 +29,30 @@ export class ExtensionFunctions implements vscode.TreeDataProvider<Dependency> {
         vscode.window.showInformationMessage("Name: "+this.serverName);
     }
 
+
+    //To refresh Tree View data
+    //allData: string;
+    //data: string;
     refresh(): void {
-        this._onDidChangeTreeData.fire(undefined);
+        //this._onDidChangeTreeData.fire(undefined);
+        fs.open('probando.json', 'r', (err, fd) => {
+            if (err) {
+                if (err.code === 'ENOENT') {
+                    console.error('myfile does not exist');
+                    return;
+                }
+                throw err;
+            }
+            
+            var allData = fs.readFileSync('probando.json', 'utf8');
+            var data = JSON.parse(allData);
+            vscode.window.showInformationMessage("Name: "+data.name);
+            vscode.window.showInformationMessage("Age: "+data.age);
+            vscode.window.showInformationMessage("City: "+data.city);
+        });
     }
     
+    //Server related
     async addServer(): Promise<any>{
         this.serverDir = await vscode.window.showInputBox();
         this.serverPort = await vscode.window.showInputBox();
@@ -38,8 +60,21 @@ export class ExtensionFunctions implements vscode.TreeDataProvider<Dependency> {
         this.serverName = await vscode.window.showInputBox();
     }
 
-    
+    showServers(): void {
+        fs.open('package.json', 'r', (err, fd) => {
+            if (err){
+                if (err.code == 'ENOENT'){
+                    vscode.window.showErrorMessage('Doesnt existssss');
+                    return;
+                }
+                throw err;
+            }
 
+            vscode.window.showInformationMessage(fd);
+        })
+    }
+
+    //Other
     getTreeItem(element: Dependency): vscode.TreeItem {
         return element;
     }
