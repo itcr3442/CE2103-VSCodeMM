@@ -63,6 +63,12 @@ namespace ce2103::mm
 		}
 	}
 
+	void garbage_collector::evict(std::size_t id)
+	{\
+		static_cast<void>(id);
+		//TODO
+	}
+
 	void garbage_collector::require_contiguous_ids(std::size_t ids) noexcept
 	{
 		std::size_t test_from = this->next_id;

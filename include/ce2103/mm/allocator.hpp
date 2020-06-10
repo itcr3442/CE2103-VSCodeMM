@@ -86,9 +86,14 @@ namespace ce2103::mm
 				return this->data - other.data;
 			}
 
-			/* implicit */ inline operator T*() const noexcept
+			inline T& operator*() const
 			{
-				return this->access();
+				return *this->access();
+			}
+
+			/* implicit */ inline operator T*() const
+			{
+				return &**this;
 			}
 	};
 

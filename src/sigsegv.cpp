@@ -10,7 +10,6 @@
 #include <chrono>
 #include <thread>
 #include <cerrno>
-#include <csetjmp>
 #include <cstddef>
 #include <cassert>
 #include <optional>
@@ -43,8 +42,7 @@ namespace
 
 	enum class result
 	{
-		// 0 isn't used in order to disambiguate setjmp()
-		success = 1,
+		success,
 		uncaught,
 		fetch_failure,
 		mapping_failure
@@ -69,9 +67,7 @@ namespace
 
 			void* install(client_session& client);
 
-			result process(operation action, void* address, std::size_t limit = 0);
-
-			void evict(void* page);
+			result process(operation action, const void* address, std::size_t limit = 0);
 
 		private:
 			struct transaction
@@ -111,8 +107,6 @@ namespace
 	} handler;
 
 	void handle_segmentation_fault(int, ::siginfo_t* signal_info, void* context) noexcept;
-
-	thread_local std::jmp_buf* probe_checkpoint = nullptr;
 
 	[[noreturn]]
 	void throw_result(result which)
@@ -203,7 +197,7 @@ namespace
 		throw std::system_error{old_errno, std::system_category()};
 	}
 
-	result fault_handler::process(operation action, void* address, std::size_t limit)
+	result fault_handler::process(operation action, const void* address, std::size_t limit)
 	{
 		std::unique_lock lock{this->mutex};
 
@@ -212,7 +206,7 @@ namespace
 			return this->request == nullptr;
 		});
 
-		transaction request{action, address, limit};
+		transaction request{action, const_cast<void*>(address), limit};
 		this->request = &request;
 		this->transition.notify_all();
 
@@ -449,8 +443,8 @@ namespace
 
 			if(signal_info->si_code == SEGV_ACCERR)
 			{
-				auto action = was_write ? operation::begin_write : operation::begin_read;
-				if(auto response = handler.process(action, signal_info->si_addr);
+				auto type = was_write ? operation::begin_write : operation::begin_read;
+				if(auto response = handler.process(type, signal_info->si_addr);
 				   response == result::uncaught)
 				{
 					/* If control reaches this point, this is a true segmentation
@@ -463,13 +457,7 @@ namespace
 					::sigaction(SIGSEGV, &action, nullptr);
 				} else if(response != result::success)
 				{
-					if(probe_checkpoint != nullptr)
-					{
-						std::longjmp(*probe_checkpoint, static_cast<int>(response));
-					} else
-					{
-						terminate("=== Non-probing remote memory operation failed ===\n");
-					}
+					terminate("=== Unchecked remote memory operation failed ===\n");
 				}
 			}
 		} catch(...)
@@ -481,23 +469,23 @@ namespace
 
 namespace ce2103::mm
 {
-	void remote_manager::probe(const void* address)
+	void remote_manager::probe(const void* address, bool for_write)
 	{
-		std::jmp_buf checkpoint;
-
-		int response = setjmp(checkpoint);
-		if(response == 0)
+		auto type = for_write ? operation::begin_write : operation::begin_read;
+		if(auto result = handler.process(type, address);
+		   result != result::success)
 		{
-			probe_checkpoint = &checkpoint;
-
-			[[maybe_unused]]
-			char canary = *static_cast<volatile const char*>(address);
+			throw_result(result);
 		}
+	}
 
-		probe_checkpoint = nullptr;
-		if(response > 0 && response != static_cast<int>(result::success))
+	void remote_manager::evict(std::size_t id)
+	{
+		void* address = this->allocation_base_for(id);
+		if(auto result = handler.process(operation::evict, address);
+		   result != result::success)
 		{
-			throw_result(static_cast<result>(response));
+			throw_result(result);
 		}
 	}
 
@@ -520,16 +508,6 @@ namespace ce2103::mm
 	{
 		void* address = this->allocation_base_for(id);
 		if(auto result = handler.process(operation::wipe, address, size);
-		   result != result::success)
-		{
-			throw_result(result);
-		}
-	}
-
-	void remote_manager::evict(std::size_t id)
-	{
-		void* address = this->allocation_base_for(id);
-		if(auto result = handler.process(operation::evict, address);
 		   result != result::success)
 		{
 			throw_result(result);

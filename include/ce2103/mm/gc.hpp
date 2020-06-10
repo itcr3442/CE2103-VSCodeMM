@@ -99,8 +99,14 @@ namespace ce2103::mm
 
 			virtual drop_result drop(std::size_t id) = 0;
 
-			virtual inline void probe([[maybe_unused]] const void* address)
+			virtual inline void probe
+			(
+				[[maybe_unused]] const void* address,
+				[[maybe_unused]] bool for_write = false
+			)
 			{}
+
+			virtual void evict(std::size_t id) = 0;
 
 		protected:
 			inline void dispose(allocation& resource)
@@ -142,6 +148,9 @@ namespace ce2103::mm
 			 * \return Result of the drop operation
 			 */
 			virtual drop_result drop(std::size_t id) final override;
+
+			//! Hints the end of a write operation.
+			virtual void evict(std::size_t id) final override;
 
 			/*!
 			 * \brief Enforces that, if no other operation is performed,
@@ -208,7 +217,7 @@ namespace ce2103::mm
 		static constexpr type type_of_array{typeid(T[]), destructor, sizeof(T), padding};
 
 		auto [id, base] = this->allocate(header_size + sizeof(T) * count);
-		this->probe(base);
+		this->probe(base, true);
 
 		new(base) allocation{count == 1 && !always_array ? type_of_single : type_of_array};
 
