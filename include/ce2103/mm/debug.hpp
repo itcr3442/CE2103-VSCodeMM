@@ -14,13 +14,17 @@ namespace ce2103::mm::_detail
 
 		std::string key;
 
-		std::variant<std::string, std::size_t> value;
+		std::variant<std::string, std::size_t, bool> value;
 
 		inline debug_chain(debug_chain* previous, std::string key, std::string value) noexcept
 		: previous{previous}, key{std::move(key)}, value{std::move(value)}
 		{}
 
 		inline debug_chain(debug_chain* previous, std::string key, std::size_t value) noexcept
+		: previous{previous}, key{std::move(key)}, value{std::move(value)}
+		{}
+
+		inline debug_chain(debug_chain* previous, std::string key, bool value) noexcept
 		: previous{previous}, key{std::move(key)}, value{std::move(value)}
 		{}
 	};

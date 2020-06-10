@@ -47,9 +47,13 @@ namespace
 			   as_string != nullptr)
 			{
 				entry[std::move(last->key)] = std::move(*as_string);
+			} else if(auto* as_unsigned = std::get_if<std::size_t>(&last->value);
+			   as_unsigned != nullptr)
+			{
+				entry[std::move(last->key)] = *as_unsigned;
 			} else
 			{
-				entry[std::move(last->key)] = std::get<std::size_t>(last->value);
+				entry[std::move(last->key)] = std::get<bool>(last->value);
 			}
 
 			last = last->previous;

@@ -247,7 +247,11 @@ namespace ce2103::mm
 				break;
 		}
 
-		debug_log(operation, "id", id, "at", locality_name, std::forward<PairTypes>(pairs)...);
+		debug_log
+		(
+			operation, "id", id, "at", static_cast<std::string>(locality_name),
+			std::forward<PairTypes>(pairs)...
+		);
 	}
 
 	template<typename T>
@@ -269,21 +273,28 @@ namespace ce2103::mm
 
 		constexpr void (*represent_single)(void*, std::size_t, std::string&) = []
 		(
-			void*, std::size_t, std::string& output
+			void* object_base, std::size_t, std::string& output
 		)
 		{
-			//TODO
-			output.append("{?}");
+			T& object = *static_cast<T*>(object_base);
+			if constexpr(std::is_fundamental_v<T>)
+			{
+				output.append(std::to_string(object));
+			} else if constexpr(std::is_same_v<std::string, std::remove_cv_t<T>>)
+			{
+				output.append(object);
+			} else
+			{
+				output.append("{...}");
+			}
 		};
 
-		using type = allocation::type;
-
-		static constexpr type type_of_single
+		static constexpr allocation::type type_of_single
 		{
 			typeid(T), destructor, sizeof(T), padding, represent_single
 		};
 
-		static constexpr type type_of_array
+		static constexpr allocation::type type_of_array
 		{
 			typeid(T[]), destructor, sizeof(T), padding,
 			[](void* object, std::size_t count, std::string& output)
