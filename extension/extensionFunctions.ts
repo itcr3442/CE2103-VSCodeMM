@@ -2,25 +2,43 @@ import * as vscode from 'vscode';
 import * as fs from 'fs-extra';
 import * as path from 'path';
 
-export class NodeDependenciesProvider implements vscode.TreeDataProvider<Dependency> {
+export class ExtensionFunctions implements vscode.TreeDataProvider<Dependency> {
 
     private _onDidChangeTreeData: vscode.EventEmitter<Dependency | undefined> = new vscode.EventEmitter<Dependency | undefined>();
 	readonly onDidChangeTreeData: vscode.Event<Dependency | undefined> = this._onDidChangeTreeData.event;
 
     constructor(private workspaceRoot: string) {}
 
-    refresh(): void {
-        this._onDidChangeTreeData.fire(undefined);
-    }
-
     callback(err): void {
         if (err) throw err;
     }
 
+    serverDir: string;
+    serverPort: string;
+    serverPass: string;
+    serverName: string;
+
     startExtension(): void{
         fs.copy('vscodemm', this.workspaceRoot, this.callback);
         vscode.window.showInformationMessage('Extensión iniciada');
+        vscode.window.showInformationMessage("Dir: "+this.serverDir);
+        vscode.window.showInformationMessage("Port: "+this.serverPort);
+        vscode.window.showInformationMessage("Pass: "+this.serverPass);
+        vscode.window.showInformationMessage("Name: "+this.serverName);
     }
+
+    refresh(): void {
+        this._onDidChangeTreeData.fire(undefined);
+    }
+    
+    async addServer(): Promise<any>{
+        this.serverDir = await vscode.window.showInputBox();
+        this.serverPort = await vscode.window.showInputBox();
+        this.serverPass = await vscode.window.showInputBox();
+        this.serverName = await vscode.window.showInputBox();
+    }
+
+    
 
     getTreeItem(element: Dependency): vscode.TreeItem {
         return element;

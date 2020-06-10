@@ -1,28 +1,32 @@
 {
-	"name": "my-helloworld",
-	"displayName": "my-helloworld",
-	"description": "Just trying out this",
+	"name": "extension",
+	"displayName": "my-extension",
+	"description": "Memory extension",
 	"version": "1.0.0",
 	"engines": {
 		"vscode": "^1.22.0"
 	},
 	"activationEvents": [
-		"onView:nodeDependencies",
-		"onCommand:nodeDependencies.startExtension"
+		"onView:Servers",
+		"onCommand:Servers.startExtension"
 	],
 	"main": "./out/extension.js",
 	"contributes": {
 		"views": {
 			"explorer": [
 				{
-					"id": "nodeDependencies",
-					"name": "Hello"
+					"id": "Servers",
+					"name": "Servers"
+				},
+				{
+					"id": "GarbageCollector",
+					"name": "Garbage collector"
 				}
 			]
 		},
 		"commands": [
 			{
-				"command": "nodeDependencies.refreshEntry",
+				"command": "Servers.refreshEntry",
 				"title": "Refresh",
 				"icon": {
 					"light": "resources/light/refresh.svg",
@@ -30,15 +34,28 @@
 				}
 			},
 			{
-				"command": "nodeDependencies.startExtension",
+				"command": "Servers.addServer",
+				"title": "Add",
+				"icon": {
+					"light": "resources/light/refresh.svg",
+					"dark": "resources/dark/refresh.svg"
+				}
+			},
+			{
+				"command": "Server.startExtension",
 				"title": "Start"
 			}
 		],
 		"menus": {
 			"view/title": [
 				{
-					"command": "nodeDependencies.refreshEntry",
-					"when": "view == nodeDependencies",
+					"command": "Servers.refreshEntry",
+					"when": "view == Servers",
+					"group": "navigation"
+				},
+				{
+					"command": "Servers.addServer",
+					"when": "view == Servers",
 					"group": "navigation"
 				}
 			]
