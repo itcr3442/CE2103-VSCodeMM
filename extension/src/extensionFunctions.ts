@@ -70,7 +70,7 @@ export class ExtensionFunctions implements vscode.TreeDataProvider<Dependency> {
                 throw err;
             }
 
-            vscode.window.showInformationMessage(fd);
+            vscode.window.showInformationMessage(fd.toString());
         })
     }
 

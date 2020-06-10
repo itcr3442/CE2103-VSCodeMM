@@ -36,3 +36,4 @@ build
 build/**
 diagrams/*.png
 **/.vscode/
+!extension/.vscode/
