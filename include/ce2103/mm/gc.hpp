@@ -217,8 +217,6 @@ namespace ce2103::mm
 		static constexpr type type_of_array{typeid(T[]), destructor, sizeof(T), padding};
 
 		auto [id, base] = this->allocate(header_size + sizeof(T) * count);
-		this->probe(base, true);
-
 		new(base) allocation{count == 1 && !always_array ? type_of_single : type_of_array};
 
 		auto* first_element = reinterpret_cast<T*>(static_cast<char*>(base) + header_size);

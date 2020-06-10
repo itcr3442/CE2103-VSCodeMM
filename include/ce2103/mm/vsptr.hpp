@@ -432,6 +432,8 @@ namespace ce2103::mm
 		}
 
 		resource->set_initialized(count);
+		owner.evict(id);
+
 		return Derived<T>{data, id, storage};
 	}
 
