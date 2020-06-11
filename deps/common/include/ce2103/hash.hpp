@@ -81,6 +81,27 @@ namespace ce2103
 			//! Performs a hash round. Requires a full buffer.
 			void do_round(std::uint32_t block) noexcept;
 	};
+
+	/*!
+	 * \brief Adapts one of the above hashers to the Standard's Hash concept.
+	 *
+	 * \tparam Hasher one of the hasher classes declared above
+	 */
+	template<class Hasher>
+	class standard_hash_adapter
+	{
+		public:
+			/*!
+			 * \brief Hashes a key.
+			 *
+			 * \tparam T key type
+			 */
+			template<typename T>
+			inline auto operator()(const T& key) noexcept
+			{
+				return Hasher::of(std::string_view(reinterpret_cast<const char*>(&key), sizeof key));
+			}
+	};
 }
 
 #endif

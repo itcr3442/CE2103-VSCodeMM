@@ -11,6 +11,7 @@
 #include <type_traits>
 
 #include "ce2103/avl.hpp"
+#include "ce2103/hash.hpp"
 
 namespace ce2103
 {
@@ -22,7 +23,7 @@ namespace ce2103
 	 * \tparam Hash      hash function
 	 * \tparam Allocator dynamic storage allocator
 	 */
-	template<typename K, typename V, class Hash = std::hash<K>,
+	template<typename K, typename V, class Hash = standard_hash_adapter<murmur3>,
 	         class Allocator = std::allocator<std::pair<const K, V>>>
 	class hash_map
 	{
