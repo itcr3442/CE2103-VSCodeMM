@@ -50,6 +50,10 @@ namespace ce2103::mm
 				barrier = input.length();
 			}
 
+			/* In the resulting vector, strings hold serialized data,
+			 * while unsigned integers indicate a zero-fill of the given
+			 * size.
+			 */
 			if(is_break)
 			{
 				fragments.push_back(barrier);
@@ -81,6 +85,8 @@ namespace ce2103::mm
 		{
 			return std::nullopt;
 		}
+
+		// See serialize_octets() for format documentation
 
 		std::size_t size = 0;
 		for(const auto& fragment : input)
@@ -126,6 +132,8 @@ namespace ce2103::mm
 			return false;
 		}
 
+		// See serialize_octets() for format documentation
+
 		for(const auto& fragment : input)
 		{
 			bool is_break;
@@ -162,6 +170,7 @@ namespace ce2103::mm
 					std::uint8_t first = get_nibble(source[2 * i]);
 					std::uint8_t second = get_nibble(source[2 * i + 1]);
 
+					//! Check that these are indeed valid nibbles
 					if(first > 0b000'1111 || second > 0b0000'1111)
 					{
 						return false;

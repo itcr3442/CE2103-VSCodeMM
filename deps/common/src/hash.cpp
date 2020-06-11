@@ -18,7 +18,7 @@ namespace
 	 *        system, and preserves its input otherwise.
 	 */
 	template<typename T>
-	constexpr inline T as_little_endian(T integer) noexcept
+	static constexpr inline T as_little_endian(T integer) noexcept
 	{
 		T result = 0;
 		for(unsigned i = 0; i < sizeof(T); ++i)

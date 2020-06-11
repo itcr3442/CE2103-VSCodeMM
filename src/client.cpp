@@ -24,6 +24,7 @@ using nlohmann::json;
 
 namespace
 {
+	//! Singleton instance
 	std::optional<ce2103::mm::remote_manager> remote_collector;
 }
 
@@ -32,6 +33,7 @@ namespace ce2103::mm
 	client_session::client_session(socket client_socket, std::string_view secret)
 	: session{std::move(client_socket)}
 	{
+		// Transforms the array of uint64_ts into a standard MD5 representation
 		std::uint8_t hash_bytes[sizeof(std::uint64_t[2])];
 		auto put_half = [&hash_bytes](std::size_t at, std::uint64_t half) noexcept
 		{
@@ -74,7 +76,7 @@ namespace ce2103::mm
 	{
 		std::lock_guard lock{this->mutex};
 
-		json query{{"alloc", 1}};
+		json query{{"alloc", 1}}; // The first part will start with a refcount of 2
 		if(remainder > 0)
 		{
 			query["rem"] = remainder;
@@ -225,12 +227,14 @@ namespace ce2103::mm
 	{
 		std::size_t part_size = this->get_part_size();
 
+		// Divides the requested size by parts; eg, 9000 becomes 4096 + 4096 + 808
 		auto id = this->client.allocate(part_size, size / part_size, size % part_size);
 		if(!id)
 		{
 			throw_network_failure();
 		}
 
+		// Optimizes writing of the allocation header in the near future
 		this->wipe(*id, std::min(size, part_size));
 		return *id;
 	}
@@ -264,8 +268,10 @@ namespace ce2103::mm
 				std::size_t total_size = header.get_total_size();
 				std::size_t parts = (total_size - 1) / this->get_part_size() + 1;
 
+				// This destroys all objects in the allocation
 				dispose(header);
 
+				// Finally, free all of the allocation's parts
 				for(std::size_t part = id; part < id + parts; ++part)
 				{
 					//! There might be a pending writeback operation
@@ -281,7 +287,8 @@ namespace ce2103::mm
 			}
 
 			default:
-				assert(false);
+				// Unreachable
+				throw_network_failure();
 		}
 	}
 }

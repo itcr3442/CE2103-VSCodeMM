@@ -18,9 +18,10 @@
 
 namespace ce2103::mm
 {
+	//! Indicates memory locality.
 	enum class at
 	{
-		any,
+		any, // Refers to the default locality
 		local,
 		remote
 	};
@@ -28,54 +29,74 @@ namespace ce2103::mm
 
 namespace ce2103::mm::_detail
 {
+	//! Variant of debug_log() which transmits objects' IDs and localitis
 	template<typename... PairTypes>
 	void memory_debug_log(const char* operation, std::size_t id, at locality, PairTypes&&... pairs);
 }
 
 namespace ce2103::mm
 {
+	/*!
+	 * \brief Allocation header present before all managed objects.
+	 *        It includes important metadata, such as object count and
+	 *        type information.
+	 */
 	class allocation
 	{
 		friend class memory_manager;
 
 		public:
+			//! Finishes allocation setup by indicating the total object count.
 			inline void set_initialized(std::size_t count) noexcept
 			{
 				this->count = count;
 			}
 
+			//! Retrieves RTTI about the stored object.
 			inline const std::type_info& get_type() const noexcept
 			{
 				return this->payload_type.rtti;
 			}
 
+			/*!
+			 * \brief Returns the size of the whole allocation, including the
+			 *        header and all objects.
+			 */
 			inline std::size_t get_total_size() const noexcept
 			{
 				return   sizeof(allocation) + this->payload_type.padding
 				       + this->payload_type.size * this->count;
 			}
 
+			//! Returns the address of the first object in the allocation
 			inline void* get_payload_base() const noexcept
 			{
 				return   const_cast<char*>(reinterpret_cast<const char*>(this))
 				       + sizeof(allocation) + this->payload_type.padding;
 			}
 
+			//! Generates a human-readable representation of the allocation's objects.
 			std::string make_representation();
 
 		private:
+			//! Holds metadata about a concrete, non-array type
 			struct type final
 			{
+				//! Type RTTI
 				const std::type_info& rtti;
 
+				//! Type's destructor
 				void (*const destructor)(void* object);
 
+				//! sizeof(T)
 				std::size_t size;
 
+				//! Alignment padding between end-of-header and start-of-object
 				std::size_t padding;
 
 				void (*const represent)(void* object, std::size_t count, std::string& output);
 
+				//! Constructs a type metadata record
 				inline constexpr type
 				(
 					const std::type_info& rtti, void (*destructor)(void*),
@@ -87,16 +108,24 @@ namespace ce2103::mm
 				{}
 			};
 
-			const type& payload_type;
-			std::size_t count = 0;
+			const type& payload_type; //!< Type information of the allocation payload
+			std::size_t count = 0;    //!< Number of objects in the allocation
 
+			//! Constructs an allocation header with the given type information
 			inline allocation(const type& payload_type) noexcept
 			: payload_type{payload_type}
 			{}
 
+			//! Invokes the payload destructor on all non trivially-destructible objects
 			void destroy_all();
 	};
 
+	/*!
+	 * \brief Communicates the object state after a drop operation.
+	 *
+	 * 'Reduced' indicates a refcount greater than one, 'hanging'
+	 * a refcount of one, and 'lost' one of zero.
+	 */
 	enum class drop_result
 	{
 		reduced,
@@ -104,25 +133,65 @@ namespace ce2103::mm
 		lost
 	};
 
+	/*!
+	 * \brief Subclasses of memory_manager provide an interface to
+	 *        operate over allocations, such as creating them and
+	 *        manipulating their reference counts.
+	 */
 	class memory_manager
 	{
 		public:
+			//! Retrives the default manager for a given locality
 			static memory_manager& get_default(at storage) noexcept;
 
+			/*!
+			 * \brief Creates a new allocation.
+			 *
+			 * \tparam T non-array type of the allocation's payload objects
+			 *
+			 * \parma count        number of contiguous objects
+			 * \param always_array whether to treat this allocation
+			 *                     as multiobject even if count <= 1
+			 *
+			 *  \return tuple containing the allocation ID, a pointer to the
+			 *          allocation header, and a pointer to the first
+			 *          (uninitialized) object
+			 */
 			template<typename T>
 			std::tuple<std::size_t, allocation*, T*> allocate_of
 			(
 				std::size_t count, bool always_array = false
 			);
 
+			//! Increments the given allocation's reference count.
 			void lift(std::size_t id);
 
+			/*!
+			 * \brief Decrements the reference count of the allocation.
+			 *        If the count reaches zero, the ID is invalidated
+			 *        an memory is disposed-of in a manager-specified manner.
+			 *
+			 * \return Indication of whether the refcount after the operation
+			 *         is one, zero, or neither.
+			 */
 			drop_result drop(std::size_t id);
 
+			//! Hints the end of a write operation. This might flush internal caches.
 			void evict(std::size_t id);
 
+			//! Returns this manager's locality
 			virtual at get_locality() const noexcept = 0;
 
+			/*!
+			 * \brief Hints of a read or write operation in the near-future .
+			 *        This might provide stronger resilience guarantees in case
+			 *        of bus errors. Managers must still be able to handle any
+			 *        operation without this indication, nonetheless.
+			 *
+			 *  \param address   an address somewhere in the allocation that is
+			 *                   about to be accessed
+			 *  \param for_write whether to hint a read or a write operation
+			 */
 			virtual inline void probe
 			(
 				[[maybe_unused]] const void* address,
@@ -130,25 +199,32 @@ namespace ce2103::mm
 			)
 			{}
 
+			//! Determines the allocation header from an ID.
 			virtual allocation& get_base_of(std::size_t id) = 0;
 
 		protected:
+			//! Protected exposition of allocation::destroy_all()
 			inline void dispose(allocation& resource)
 			{
 				resource.destroy_all();
 			}
 
 		private:
+			//! Reserves an ID for the given amount of bytes.
 			virtual std::size_t allocate(std::size_t size) = 0;
 
+			//! Manager-specific fragment of the lift operation.
 			virtual void do_lift(std::size_t id) = 0;
 
+			//! Manager-specific fragment of the drop operation.
 			virtual drop_result do_drop(std::size_t id) = 0;
 
+			//! Manager-specific fragment of the evict operation.
 			virtual inline void do_evict([[maybe_unused]] std::size_t id)
 			{}
 	};
 
+	//! A local mananger which frees memory periodically
 	class garbage_collector : public memory_manager
 	{
 		public:

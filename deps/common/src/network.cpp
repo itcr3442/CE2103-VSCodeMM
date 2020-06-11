@@ -17,6 +17,7 @@
 
 namespace
 {
+	//! Throws the current errno value as a std::system_error
 	[[noreturn]]
 	void throw_errno()
 	{

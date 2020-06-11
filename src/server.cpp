@@ -162,7 +162,7 @@ namespace
 
 		return !this->is_lost();
 	}
-	
+
 	void server_session::authorize(const nlohmann::json& input)
 	{
 		char hash_bytes[sizeof(std::uint64_t[2])];
@@ -171,6 +171,8 @@ namespace
 			this->fail_bad_request();
 		} else
 		{
+			// Verifies the password hash
+
 			secret_hash hash{0, 0};
 			for(unsigned i = 0; i < sizeof hash_bytes; ++i)
 			{
@@ -190,6 +192,7 @@ namespace
 			stale_ids.append(id);
 		}
 
+		// Check for leaks
 		if(stale_ids.get_size() > 0)
 		{
 			this->send({{"leaked", std::vector<std::size_t>(stale_ids.begin(), stale_ids.end())}});
@@ -227,7 +230,7 @@ namespace
 
 			this->objects.insert(id, std::make_pair(base, size));
 		};
-	
+
 		for(std::size_t i = 0; i < parts; ++i)
 		{
 			allocate_next(part_size);

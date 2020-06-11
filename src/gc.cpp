@@ -71,6 +71,7 @@ namespace ce2103::mm
 	{
 		std::size_t test_from = this->next_id;
 
+		// Check that the expected range is completely free
 		bool found = false;
 		while(!found)
 		{
@@ -117,6 +118,7 @@ namespace ce2103::mm
 			std::lock_guard lock{this->mutex};
 			terminated = std::move(this->thread);
 
+			// Wake-up the GC thread immediately
 			this->wakeup.notify_one();
 		}
 
@@ -200,6 +202,7 @@ namespace ce2103::mm
 						 */
 						lock.unlock();
 
+						// Destroy the objects and then the free the allocation
 						dispose(*header);
 						::operator delete(header);
 
@@ -212,6 +215,7 @@ namespace ce2103::mm
 			} while(modified);
 		} while(!is_last_run);
 
+		// By design, unattended circular references might cause leaks
 		if(this->allocations.get_size() > 0)
 		{
 			std::cerr << "=== These allocations have stale references at GC termination ===\n";

@@ -20,22 +20,35 @@ using ce2103::mm::_detail::debug_chain;
 
 namespace
 {
+	//! Active session used as a side channel for debugging
 	class debug_session : public session
 	{
 		public:
+			//! Constructs a debug session out of a socket
 			inline debug_session(ce2103::socket client_socket)
 			: session{std::move(client_socket)}
 			{}
 
+			//! Sends a debug message line, constructed from a chain
 			void put(debug_chain* node);
 
+			/*!
+			 * \brief The debug server might indicate some environemnt
+			 *        variables to set: MM_PSK and MM_SERVER. This occurs
+			 *        during the handshake.
+			 *
+			 * \return whether no error ocurred
+			 */
 			bool accept_options();
 	};
 
+	//! Debug channel in use, if available
 	std::optional<debug_session> debug_logger;
 
+	//! Guarantees the initialization functions are called at most once
 	std::once_flag initialization_flag;
 
+	//! Manager which corresponds to at::any
 	ce2103::mm::memory_manager* default_manager;
 
 	void debug_session::put(debug_chain* last)
@@ -144,8 +157,10 @@ namespace ce2103::mm
 		{
 			using ce2103::mm::remote_manager, ce2103::socket, ce2103::ip_endpoint;
 
+			// Attempt to establish an authorized session with the server
 			bool connected = false;
-			if(const char* endpoint_string = std::getenv("MM_SERVER"); endpoint_string != nullptr)
+			if(const char* endpoint_string = std::getenv("MM_SERVER");
+			   endpoint_string != nullptr)
 			{
 				socket client_socket;
 				if(auto endpoint = ip_endpoint::try_from(endpoint_string); !endpoint)
