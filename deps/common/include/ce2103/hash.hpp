@@ -48,6 +48,39 @@ namespace ce2103
 			//! Performs a hash round. Requires a full buffer.
 			void do_round() noexcept;
 	};
+
+	//! State machine for murmur3 hashes
+	class murmur3
+	{
+		public:
+			/*!
+			 * \brief Computes the murmur3 hash of the given input.
+			 *
+			 * \param input message whose hash is to be calculated
+			 */
+			static std::uint32_t of(std::string_view input) noexcept;
+
+			//! Appends data to the source message.
+			void feed(const void* source, std::size_t bytes) noexcept;
+
+			//! Indicates end-of-input and returns the computed hash.
+			std::uint32_t finish() && noexcept;
+
+		private:
+			//! Scramble operation
+			static std::uint32_t scramble(std::uint32_t value) noexcept;
+
+			//! Intermediary buffer for holding partial message blocks.
+			std::uint8_t buffer[sizeof(std::uint32_t)];
+
+			unsigned buffer_usage = 0;
+
+			//! State register
+			std::uint32_t hash = 0xfafafafa;
+
+			//! Performs a hash round. Requires a full buffer.
+			void do_round(std::uint32_t block) noexcept;
+	};
 }
 
 #endif

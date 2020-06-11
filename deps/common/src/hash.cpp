@@ -184,4 +184,65 @@ namespace ce2103
 
 		this->buffer_usage = 0;
 	}
+
+	std::uint32_t murmur3::of(std::string_view input) noexcept
+	{
+		murmur3 hasher;
+		hasher.feed(input.data(), input.length());
+
+		return std::move(hasher).finish();
+	}
+
+	void murmur3::feed(const void* input, std::size_t length) noexcept
+	{
+		const auto* byte_input = static_cast<const std::uint8_t*>(input);
+		if(this->buffer_usage > 0)
+		{
+			std::size_t copied = std::min(length, sizeof this->buffer - this->buffer_usage);
+			std::copy(byte_input, byte_input + copied, &this->buffer[this->buffer_usage]);
+
+			this->do_round(*reinterpret_cast<std::uint32_t*>(this->buffer));
+
+			length -= copied;
+			byte_input += copied;
+		}
+
+		while(length >= sizeof this->buffer)
+		{
+			this->do_round(*reinterpret_cast<const std::uint32_t*>(byte_input));
+
+			length -= sizeof this->buffer;
+			byte_input += sizeof this->buffer;
+		}
+
+		std::copy(byte_input, byte_input + length, this->buffer);
+		this->buffer_usage = length;
+	}
+
+	std::uint32_t murmur3::finish() && noexcept
+	{
+		std::uint32_t last = 0;
+		for(std::size_t i = this->buffer_usage; i > 0; --i)
+		{
+			last = (last << 8) | buffer[i - 1];
+		}
+
+		this->hash = this->hash ^ scramble(last) ^ this->buffer_usage;
+		this->hash = (this->hash ^ (this->hash >> 16)) * 0x85ebca6b;
+		this->hash = (this->hash ^ (this->hash >> 13)) * 0xc2b2ae35;
+
+		return hash ^ (hash >> 16);
+	}
+
+	std::uint32_t murmur3::scramble(std::uint32_t value) noexcept
+	{
+		return ((value << 15) | (value >> 17)) * 0x1b873593;
+	}
+
+	void murmur3::do_round(std::uint32_t block) noexcept
+	{
+		this->hash ^= scramble(block);
+		this->hash = (this->hash << 13) | (this->hash >> 19);
+		this->hash = this->hash * 5 + 0xe6546b64;
+	}
 }
