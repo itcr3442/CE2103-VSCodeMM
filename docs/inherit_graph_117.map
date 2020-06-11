@@ -1,0 +1,5 @@
+<map id="Graphical Class Hierarchy" name="Graphical Class Hierarchy">
+<area shape="rect" id="node1" href="$classce2103_1_1mm_1_1memory__manager.html" title="Subclasses of memory_manager provide an interface to operate over allocations, such as creating them ..." alt="" coords="5,39,155,80"/>
+<area shape="rect" id="node2" href="$classce2103_1_1mm_1_1garbage__collector.html" title="A local mananger which frees memory periodically." alt="" coords="203,5,351,47"/>
+<area shape="rect" id="node3" href="$classce2103_1_1mm_1_1remote__manager.html" title="A manager which forwards requests to a network server. Userspace virtual memory manipulation is used ..." alt="" coords="205,71,348,112"/>
+</map>

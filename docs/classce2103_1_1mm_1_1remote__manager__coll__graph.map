@@ -1,0 +1,4 @@
+<map id="ce2103::mm::remote_manager" name="ce2103::mm::remote_manager">
+<area shape="rect" id="node1" title="A manager which forwards requests to a network server. Userspace virtual memory manipulation is used ..." alt="" coords="9,95,151,136"/>
+<area shape="rect" id="node2" href="$classce2103_1_1mm_1_1memory__manager.html" title="Subclasses of memory_manager provide an interface to operate over allocations, such as creating them ..." alt="" coords="5,5,155,47"/>
+</map>

@@ -1,0 +1,4 @@
+<map id="ce2103::mm::unsafe_ptr&lt; T &gt;" name="ce2103::mm::unsafe_ptr&lt; T &gt;">
+<area shape="rect" id="node1" title="Unchecked variant of VSPtr&lt;T&gt;, for use by allocator&lt;T&gt;" alt="" coords="19,80,161,121"/>
+<area shape="rect" id="node2" href="$classce2103_1_1mm_1_1VSPtr.html" title="A smart, managed pointer for fundamental and composite types." alt="" coords="5,5,175,32"/>
+</map>

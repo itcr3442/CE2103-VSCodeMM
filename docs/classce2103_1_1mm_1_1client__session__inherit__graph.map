@@ -1,0 +1,4 @@
+<map id="ce2103::mm::client_session" name="ce2103::mm::client_session">
+<area shape="rect" id="node1" title="Client&#45;side remote memory session." alt="" coords="12,80,145,121"/>
+<area shape="rect" id="node2" href="$classce2103_1_1mm_1_1session.html" title="Represents an active TCP session which communicates one JSON value per line." alt="" coords="5,5,152,32"/>
+</map>

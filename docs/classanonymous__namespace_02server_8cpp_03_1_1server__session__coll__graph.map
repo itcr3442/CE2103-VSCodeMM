@@ -1,0 +1,4 @@
+<map id="anonymous_namespace{server.cpp}::server_session" name="anonymous_namespace{server.cpp}::server_session">
+<area shape="rect" id="node1" title="Server&#45;side representation of a session." alt="" coords="5,80,168,136"/>
+<area shape="rect" id="node2" href="$classce2103_1_1mm_1_1session.html" title="Represents an active TCP session which communicates one JSON value per line." alt="" coords="13,5,160,32"/>
+</map>

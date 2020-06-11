@@ -1,0 +1,4 @@
+<map id="ce2103::mm::garbage_collector" name="ce2103::mm::garbage_collector">
+<area shape="rect" id="node1" title="A local mananger which frees memory periodically." alt="" coords="6,95,154,136"/>
+<area shape="rect" id="node2" href="$classce2103_1_1mm_1_1memory__manager.html" title="Subclasses of memory_manager provide an interface to operate over allocations, such as creating them ..." alt="" coords="5,5,155,47"/>
+</map>

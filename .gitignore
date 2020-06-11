@@ -31,7 +31,6 @@
 *.out
 *.app
 
-docs/**
 build
 build/**
 diagrams/*.png
