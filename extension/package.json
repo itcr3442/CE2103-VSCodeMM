@@ -12,35 +12,64 @@
   "activationEvents": [
     "onView:vscodemm.servers",
     "onView:vscodemm.heap",
-    "onCommand:vscodemm.setup"
+    "onCommand:vscodemm.setup",
+    "onLanguage:cpp"
   ],
   "main": "./out/extension.js",
   "contributes": {
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "vscodemm.setup",
+          "when": "!vscodemm.initialized"
+        },
+        {
+          "command": "vscodemm.testServer",
+          "when": "false"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "vscodemm.testServer",
+          "when": "view == vscodemm.servers",
+          "group": "navigation"
+        }
+      ]
+    },
     "viewsContainers": {
       "activitybar": [
         {
-          "id": "heap-visualizer",
-          "title": "Heap Visualizer",
-          "icon": "resources/dark/dependency.svg"
+          "id": "vscodemm",
+          "title": "Memory Manager",
+          "icon": "resources/dark/dependency.svg",
+          "when": "vscodemm.initialized"
         }
       ]
     },
     "views": {
-      "heap-visualizer": [
+      "vscodemm": [
         {
           "id": "vscodemm.servers",
-          "name": "Servers"
+          "name": "Servers",
+          "when": "vscodemm.initialized && !vscodemm.running"
         },
         {
-          "id": "vscodemm.heap",
-          "name": "Heap objects"
+          "id": "vscodemm.heapVisualizer",
+          "name": "Heap visualizer",
+          "when": "vscodemm.running"
         }
       ]
     },
     "commands": [
       {
         "command": "vscodemm.setup",
-        "title": "Initialize VSCodeMM"
+        "title": "Initialize VSCodeMM",
+        "enablement": "!vscodemm.initialized"
+      },
+      {
+        "command": "vscodemm.testServer",
+        "title": "Test a new server",
+        "enablement": "vscodemm.initialized"
       }
     ]
   },
