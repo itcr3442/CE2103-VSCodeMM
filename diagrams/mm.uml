@@ -1,11 +1,21 @@
 @startuml
 
+' export PLANTUML_LIMIT_SIZE=8192
+'
+' Note that if you generate very big diagrams, (for example,
+' something like 20 000 x 10 000 pixels), you can have some
+' memory issues. The solution is to add this parameter to the
+' java vm: -Xmx1024m. 
+
 set namespaceSeparator ::
 hide circle
+
 skinparam genericDisplay old
+skinparam classAttributeIconSize 0
 
 namespace ce2103::mm::_detail {
 	abstract class ptr_base<T, Derived> {
+		+{static} from_cast<U>(source: const Derived<U>&) : Derived<T>
 		+ptr_base()
 		+ptr_base(other: const ptr_base<T, Derived>&)
 		+ptr_base(other: ptr_base<T, Derived>&&)
@@ -19,44 +29,53 @@ namespace ce2103::mm::_detail {
 		+operator!=(std::nullptr_t) const : bool
 		+operator!=<U, OtherDerived>(other: const ptr_base<U, OtherDerived>&) const : bool
 		+explicit operator bool() const
-		#{static} create<Args...>(count: std::size_t, always_array: bool, args: Args&&...) : Derived<T>
+		+explicit operator Derived<U>() const
+		#{static} create<U, Args...>(count: std::size_t, always_array: bool, storage: at, args: Args&&...) : Derived<T>
+		#{static} create<U, Args...>(count: std::size_t, always_array: bool, args: Args&&...) : Derived<T>
 		#data : T*
 		#id : std::size_t
-		#owner : memory_manager*
-		#ptr_base(data: T*, id: std::size_t, owner: memory_manager*)
-		#access() const : T*
+		#storage : at
+		#ptr_base(data: T*, id: std::size_t, storage: at)
+		#get_owner() : memory_manager*
+		#access(for_write: bool) const : T*
 		#initialize<U, OtherDerived>(other: const ptr_base<U, OtherDerived>&) : Derived<T>&
 		#initialize<U, OtherDerived>(other: ptr_base<U, OtherDerived>&&) : Derived<T>&
 		#assign<U, OtherDerived>(other: const ptr_base<U, OtherDerived>&) : Derived<T>&
 		#assign<U, OtherDerived>(other: ptr_base<U, OtherDerived>&&) : Derived<T>&
 		#clone_with<Ptr>(new_data: T*) const : Ptr
 	}
-
-	abstract class function_base<Ret, Params...> {
-		+{abstract} operator()(args: Params...) : Ret
-	}
-
-	class function<Target, Ret, Params...> extends function_base {
-		+target : Target
-		+function(target: Target)
-	}
 }
 
 namespace ce2103::mm {
 	class "VSPtr<T>" extends ce2103::mm::_detail::ptr_base {
+		+{static} from_cast<U>(source: const VSPtr<U>&) : VSPtr<T>
 		+{static} New<Args...>(Args&&... args) : VSPtr<T>
 		+VSPtr<U>(other : const VSPtr<U>&)
 		+VSPtr<U>(other : VSPtr<U>&&)
+		+~VSPtr()
 		+operator=<U>(other : const VSPtr<U>&) : VSPtr<T>&
 		+operator=<U>(other : VSPtr<U>&&) : VSPtr<T>&
 		+operator=<U>(other : U&&) : VSPtr<T>&
 		+operator->() const : T*
-		+operator*() const : T&
-		+operator&() const : T&
+		+operator*() const : dereferenced
+		+operator&() const : dereferenced
+		+operator->*<FieldType>() const : VSPtr<FieldType>
 	}
+
+	class "ce2103::mm::VSPtr<T>::dereferenced" {
+		+dereferenced(other: deferenced&&) noexcept
+		+operator=<U>(value: U&&) const && : const dereferenced&&
+		+operator&() const && : VSPtr<T>
+		+operator T&() const && noexcept
+		-pointer : const vSPtr<T>&
+		-dereferenced(pointer: const VSPtr<T>&)
+	}
+
+	"ce2103::mm::VSPtr<T>" +-- "ce2103::mm::VSPtr<T>::dereferenced"
 
 	class "VSPtr<T[]>" extends ce2103::mm::_detail::ptr_base {
 		+{static} New<Args...>(count: std::size_t, Args&&... args) : VSPtr<T[]>
+		+~VSPtr()
 		+get_size() : std::size_t
 		+slice(start: std::size_t, size: std::size_t) const : VSPtr<T[]>
 		+operator[](index: std::ptrdiff_t) const : T&
@@ -72,66 +91,85 @@ namespace ce2103::mm {
 		-of_size(size: std::size_t) && : VSPtr<T[]>
 	}
 
-	class "VSPtr<Ret(Params...)>" extends ce2103::mm::_detail::ptr_base {
-		+{static} New<Target>(target: Target) : VSPtr<Ret(Params...)>
-		+operator()(args: Params...) : Ret
-	}
-
-	class "VSPtr<[const] void>" extends ce2103::mm::_detail::ptr_base {
-		+VSPtr<U>(other: const VSPtr<U>&)
-		+VSPtr<U>(other: VSPtr<U>&&)
-		+operator=(other: const VSPtr<U>&) : VSPtr<U>&
-		+operator=(other: VSPtr<U>&&) : VSPtr<U>&
-	}
-
 	class allocation {
 		+set_initialized(count: std::size_t)
-		+get_mangled_type_name() : const char*
-		+get_demangled_type_name() const : std::string
-		+get_total_size() const : std::size_t
-		-type : const std::type_info&
+		+get_type() const noexcept : const std::type_info&
+		+get_total_size() const noexcept : std::size_t
+		+get_payload_base() const noexcept : void*
+		+make_representation() : std::string
+		-payload_type : const type&
 		-count : std::size_t
-		-padding: std::size_t
-		-destructor : void(*)(void* object)
-		-size : std::size_t
-		-allocation(type: const std::type_info&, destructor: void(*)(void*), padding: std::size_t, size: std::size_t)
+		-allocation(payload_type: const type&)
 		-destroy_all()
+	}
+
+	class ce2103::mm::allocation::type {
+		rtti: const std::type_info&
+		destructor: void(*const)(void*)
+		size: std::size_t
+		padding: std::size_t
+		represent: void(*const)(void*, std::size_t, std::string&)
+	}
+
+	allocation +-- ce2103::mm::allocation::type
+
+	enum at {
+		any
+		local
+		remote
 	}
 
 	abstract class memory_manager {
 		+{static} get_default() : memory_manager&
 		+allocate_of<T>(count: std::size_t, always_array: bool = false) : std::tuple<std::size_t. allocation*, T*>
-		+{abstract} lift(id: std::size_t) : std::size_t
-		+{abstract} drop(id: std::size_t) : std::size_t
-		+{abstract} probe(address: const void*)
+		+lift(id: std::size_t)
+		+drop(id: std::size_t) : drop_result
+		+evict(id: std::size_t)
+		+{abstract} get_locality() const noexcept : at
+		+probe(address: const void*, for_write: bool)
+		+{abstract} get_base_of(id: std::size_t) : allocation&
 		#dispose(resource: allocation&)
-		-{abstract} allocate(size: std::size_t) : std::pair<std::size_t, void*>
+		-{abstract} allocate(size: std::size_t) : std::size_t
+		-{abstract} do_lift(id: std::size_t)
+		-{abstract} do_drop(id: std::size_t) : drop_result
+		-do_evict(id: std::size_t)
 	}
 
 	class garbage_collector extends memory_manager {
 		+{static} get_instance() : garbage_collector&
-		+require_contiguous_ids(ids: std::size_t)
+		+get_locality() : at
+		+get_base_of(id: std::size_t) : allocation&
+		+require_contiguous_ids(ids: std::size_t) noexcept
 		-allocations : hash_map<std::size_t, std::pair<std::size_t, allocation*>>
 		-next_id : std::size_t
-		-mutex : std::mutex
+		-mutable mutex : std::mutex
 		-thread : std::thread
 		-wakeup : std::condition_variable
 		-garbage_collector()
+		-~garbage_collector()
+		-allocate(size: std::size_t) : std::size_t
+		-do_lift(id: std::size_t)
+		-do_drop(id: std::size_t) : drop_result
 		-main_loop()
 	}
 
 	class remote_manager extends memory_manager {
 		+{static} initialize(client_socket: socket, secret: std::string_view) : bool,
 		+{static} get_instance() : remote_manager&
-		-remote_manager(client_socket: socket, secret: std::string_view)
+		+get_locality() const noexcept : at
+		+probe(address: const void*, for_write: bool)
+		+get_base_of(id: std::size_t) : allocation&
 		-client : client_session
 		-trap_base : void*
+		-remote_manager(client_socket: socket, secret: std::string_view)
 		-{static} throw_network_failure()
+		-allocate(size: std::size_t) : std::size_t
+		-do_lift(id: std::size_t)
+		-do_drop(id: std::size_t) : drop_result
+		-do_evict(id: std::size_t)
 		-install_trap_region()
-		-allocation_base_for(id: std::size_t) : void*
 		-get_part_size() const : std::size_t
 		-wipe(id: std::size_t, size: std::size_t)
-		-evict(id: std::size_t)
 	}
 
 	class session {
@@ -143,18 +181,19 @@ namespace ce2103::mm {
 		#send(data: nlohmann::json)
 		#receive() : std::optional<nlohmann::json>
 		#discard()
-		-peer : std::optional<peer>
+		-peer : std::optional<socket>
 	}
 
 	class client_session extends session {
+		+client_session(client_socket: socket, secret: std::string_view)
 		+finalize() : bool
 		+allocate(peer_size: std::size_t, parts: std::size_t, remainder: std::size_t) : std::optional<std::size_t>
-		+lift(id: std::size_t) : std::optional<std::size_t>
-		+drop(id: std::size_t) : std::optional<std::size_t>
+		+lift(id: std::size_t) : bool
+		+drop(id: std::size_t) : std::optional<drop_result>
 		+fetch(id: std::size_t) : std::optional<std::string>
 		+overwrite(id: std::size_t, contents: std::string_view) : bool
 		-mutable mutex : std::mutex
-		-do_id_operation<T>(operation: std::string_view, id: std::size_t) : std::optional<T>
+		-expect_empty() : bool:
 		-expect_value<T>() : std::optional<T>
 	}
 
@@ -163,7 +202,8 @@ namespace ce2103::mm {
 		memory_error
 		network_failure
 		null_dereference
-		out_of_bounds
+		out_of_bounds,
+		no_remote_session
 	}
 
 	class error_category {
@@ -182,7 +222,7 @@ namespace ce2103::mm {
 		+operator!=(other: const allocator<T>&) : bool
 	}
 
-	class unsafe_ptr<T> extends VSPtr {
+	class unsafe_ptr<T> {
 		+{static} pointer_to(object: T&) : unsafe_ptr<T>
 		+unsafe_ptr()
 		+unsafe_ptr(data: T*)
@@ -195,5 +235,98 @@ namespace ce2103::mm {
 		+operator T*() const
 	}
 }
+
+class debug_session extends ce2103::mm::session {
+	+debug_session(client_socket: ce2103::socket)
+	+put(node: debug_chain*)
+	+accept_options() : bool
+}
+
+enum result {
+	success
+	uncaught
+	fetch_failure
+	mapping_failure
+}
+
+enum operation {
+	begin_read
+	begin_write
+	terminate
+	wipe
+	evict
+}
+
+class fault_handler {
+	+~fault_handler()
+	+install(client: ce2103::client_session&)
+	+process(action: operation, address: const void*, limit: std::size_t) : result
+	-request: transaction*
+	-mutable mutex : std::mutex
+	-transition : std::condition_variable
+	-thread : std::thread
+	-base : void*
+	-client : client_session*
+	-main_loop()
+	-release(page: void*, invalidate: bool, writeback_length: std::size_t) : result
+	-require(page: void*, fetch: bool, writable: bool) : std::pair<result, std::size_t>
+	-get_position_of(page: void*) : std::optional<std::pair<std::size_t, std::size_t>>
+}
+
+class transaction {
+	type: operation
+	address: void*
+	limit: std::size_t
+	response: result
+
+	+transaction(type: operation, address: void*, limit: std::size_t) noexcept
+}
+
+fault_handler +-- result
+fault_handler +-- operation
+fault_handler +-- transaction
+
+class server_session extends ce2103::mm::session {
+	+server_session(client: ce2103::socket, secret: const secret_hash&)
+	+server_session(other: server_session&&) noexcept
+	+~server_session()
+	+operator=(other: server_session&&) : server_session&
+	+on_input()
+	-secret : std::reference_wrapper<const secret_hash>
+	-objects : ce2103::hash_map<std::size_t, std::pair<char*, std::size_t>>
+	-authorized : bool
+	-authorize(input: const nlohmann::json&)
+	-finalize()
+	-allocate(part_size: std::size_t, parts: std::size_t, remainder: std::size_t, initial_count: std::size_t)
+	-lift(id: std::size_t)
+	-drop(id: std::size_t)
+	-read_contents(id: std::size_t)
+	-write_contents(id: std::size_t, contents: const nlohmann::json&)
+	-expect_extant(id: std::size_t) noexcept : std::pair<char*, std::size_t>*
+	-send_empty()
+	-send_error(message: const char*)
+	-fail_bad_request()
+	-fail_wrong_size()
+}
+
+ce2103::mm::memory_manager -- ce2103::mm::at
+ce2103::mm::memory_manager ..> debug_session
+ce2103::mm::_detail::ptr_base ..> ce2103::mm::memory_manager
+ce2103::mm::allocation o-- ce2103::mm::garbage_collector
+server_session --> ce2103::mm::garbage_collector
+fault_handler --> ce2103::mm::client_session
+ce2103::mm::remote_manager *-- ce2103::mm::client_session
+ce2103::mm::remote_manager -- fault_handler
+ce2103::mm::allocator ..> ce2103::mm::unsafe_ptr
+ce2103::mm::memory_manager --> ce2103::mm::garbage_collector
+ce2103::mm::memory_manager --> ce2103::mm::remote_manager
+ce2103::mm::error_category --> ce2103::mm::error_code
+fault_handler ..> ce2103::mm::error_code
+ce2103::mm::remote_manager ..> ce2103::mm::error_code
+"ce2103::mm::VSPtr<T>" -- ce2103::mm::at
+"ce2103::mm::VSPtr<T[]>" -- ce2103::mm::at
+"ce2103::mm::VSPtr<T[]>" o-- "ce2103::mm::VSPtr<T>"
+ce2103::mm::remote_manager --> ce2103::mm::allocation
+ce2103::mm::unsafe_ptr --|> "ce2103::mm::VSPtr<T>"
 
 @enduml
