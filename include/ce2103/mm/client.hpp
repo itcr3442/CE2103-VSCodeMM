@@ -6,6 +6,7 @@
 #include <utility>
 #include <cstddef>
 #include <optional>
+#include <typeinfo>
 #include <string_view>
 
 #include "ce2103/network.hpp"
@@ -43,12 +44,13 @@ namespace ce2103::mm
 			 * \param part_size size of each non-remainder part
 			 * \param parts     number of part_size parts
 			 * \param remainder size of the last allocation
+			 * \param type      object type name
 			 *
 			 * \return first allocation ID, if successful
 			 */
 			std::optional<std::size_t> allocate
 			(
-				std::size_t part_size, std::size_t parts, std::size_t remainder
+				std::size_t part_size, std::size_t parts, std::size_t remainder, const char* type
 			);
 
 			//! Attempts to increment the reference count of a remote object.
@@ -126,7 +128,10 @@ namespace ce2103::mm
 			static void throw_network_failure();
 
 			//! Reserves an ID for a new allocation of the given size.
-			virtual std::size_t allocate(std::size_t size) final override;
+			virtual std::size_t allocate
+			(
+				std::size_t size, const std::type_info& type
+			) final override;
 
 			//! Increments the reference count of an allocation/
 			virtual void do_lift(std::size_t id) final override;

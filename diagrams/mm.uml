@@ -129,7 +129,7 @@ namespace ce2103::mm {
 		+probe(address: const void*, for_write: bool)
 		+{abstract} get_base_of(id: std::size_t) : allocation&
 		#dispose(resource: allocation&)
-		-{abstract} allocate(size: std::size_t) : std::size_t
+		-{abstract} allocate(size: std::size_t, type: const std::type_info&) : std::size_t
 		-{abstract} do_lift(id: std::size_t)
 		-{abstract} do_drop(id: std::size_t) : drop_result
 		-do_evict(id: std::size_t)
@@ -147,7 +147,7 @@ namespace ce2103::mm {
 		-wakeup : std::condition_variable
 		-garbage_collector()
 		-~garbage_collector()
-		-allocate(size: std::size_t) : std::size_t
+		-allocate(size: std::size_t, const std::type_info&) : std::size_t
 		-do_lift(id: std::size_t)
 		-do_drop(id: std::size_t) : drop_result
 		-main_loop()
@@ -163,7 +163,7 @@ namespace ce2103::mm {
 		-trap_base : void*
 		-remote_manager(client_socket: socket, secret: std::string_view)
 		-{static} throw_network_failure()
-		-allocate(size: std::size_t) : std::size_t
+		-allocate(size: std::size_t, type: const std::type_info&) : std::size_t
 		-do_lift(id: std::size_t)
 		-do_drop(id: std::size_t) : drop_result
 		-do_evict(id: std::size_t)
@@ -187,7 +187,7 @@ namespace ce2103::mm {
 	class client_session extends session {
 		+client_session(client_socket: socket, secret: std::string_view)
 		+finalize() : bool
-		+allocate(peer_size: std::size_t, parts: std::size_t, remainder: std::size_t) : std::optional<std::size_t>
+		+allocate(peer_size: std::size_t, parts: std::size_t, remainder: std::size_t, type: const char*) : std::optional<std::size_t>
 		+lift(id: std::size_t) : bool
 		+drop(id: std::size_t) : std::optional<drop_result>
 		+fetch(id: std::size_t) : std::optional<std::string>

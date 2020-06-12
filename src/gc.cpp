@@ -6,6 +6,7 @@
 #include <cassert>
 #include <cstddef>
 #include <iostream>
+#include <typeinfo>
 #include <stdexcept>
 
 #include "ce2103/rtti.hpp"
@@ -125,7 +126,7 @@ namespace ce2103::mm
 		terminated.join();
 	}
 
-	std::size_t garbage_collector::allocate(std::size_t size)
+	std::size_t garbage_collector::allocate(std::size_t size, const std::type_info&)
 	{
 		void* base = ::operator new(size);
 

@@ -210,8 +210,8 @@ namespace ce2103::mm
 			}
 
 		private:
-			//! Reserves an ID for the given amount of bytes.
-			virtual std::size_t allocate(std::size_t size) = 0;
+			//! Reserves an ID for the given amount of bytes and type.
+			virtual std::size_t allocate(std::size_t size, const std::type_info& type) = 0;
 
 			//! Manager-specific fragment of the lift operation.
 			virtual void do_lift(std::size_t id) = 0;
@@ -279,7 +279,7 @@ namespace ce2103::mm
 			 *
 			 * \return new ID
 			 */
-			virtual std::size_t allocate(std::size_t size) final override;
+			virtual std::size_t allocate(std::size_t size, const std::type_info&) final override;
 
 			/*!
 			 * \brief Increments the reference count of the given object.
@@ -392,10 +392,12 @@ namespace ce2103::mm
 			}
 		};
 
-		std::size_t id = this->allocate(header_size + sizeof(T) * count);
+		const auto& type = count == 1 && !always_array ? type_of_single : type_of_array;
+
+		std::size_t id = this->allocate(header_size + sizeof(T) * count, type.rtti);
 		allocation* base = &this->get_base_of(id);
 
-		new(base) allocation{count == 1 && !always_array ? type_of_single : type_of_array};
+		new(base) allocation{type};
 		void* first_object = base->get_payload_base();
 
 		_detail::memory_debug_log

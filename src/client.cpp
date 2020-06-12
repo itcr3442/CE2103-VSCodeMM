@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <climits>
 #include <optional>
+#include <typeinfo>
 #include <algorithm>
 #include <string_view>
 #include <system_error>
@@ -71,12 +72,13 @@ namespace ce2103::mm
 
 	std::optional<std::size_t> client_session::allocate
 	(
-		std::size_t part_size, std::size_t parts, std::size_t remainder
+		std::size_t part_size, std::size_t parts, std::size_t remainder, const char* type
 	)
 	{
 		std::lock_guard lock{this->mutex};
 
-		json query{{"alloc", 1}}; // The first part will start with a refcount of 2
+		// The first part will start with a refcount of 2
+		json query{{"alloc", 1}, {"type", type}};
 		if(remainder > 0)
 		{
 			query["rem"] = remainder;
@@ -223,12 +225,16 @@ namespace ce2103::mm
 		throw std::system_error{error_code::network_failure};
 	}
 
-	std::size_t remote_manager::allocate(std::size_t size)
+	std::size_t remote_manager::allocate(std::size_t size, const std::type_info& type)
 	{
 		std::size_t part_size = this->get_part_size();
 
 		// Divides the requested size by parts; eg, 9000 becomes 4096 + 4096 + 808
-		auto id = this->client.allocate(part_size, size / part_size, size % part_size);
+		auto id = this->client.allocate
+		(
+			part_size, size / part_size, size % part_size, type.name()
+		);
+
 		if(!id)
 		{
 			throw_network_failure();
