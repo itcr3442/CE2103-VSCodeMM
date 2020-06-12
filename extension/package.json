@@ -12,7 +12,8 @@
   "activationEvents": [
     "onView:vscodemm.servers",
     "onView:vscodemm.heap",
-    "onCommand:vscodemm.setup"
+    "onCommand:vscodemm.setup",
+    "onLanguage:cpp"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -21,7 +22,8 @@
         {
           "id": "vscodemm",
           "title": "Memory Manager",
-          "icon": "resources/dark/dependency.svg"
+          "icon": "resources/dark/dependency.svg",
+          "when": "vscodemm.initialized"
         }
       ]
     },
@@ -29,18 +31,21 @@
       "vscodemm": [
         {
           "id": "vscodemm.servers",
-          "name": "Servers"
+          "name": "Servers",
+          "when": "vscodemm.initialized && !vscodemm.running"
         },
         {
           "id": "vscodemm.heap",
-          "name": "Heap objects"
+          "name": "Heap objects",
+          "when": "vscodemm.running"
         }
       ]
     },
     "commands": [
       {
         "command": "vscodemm.setup",
-        "title": "Initialize VSCodeMM"
+        "title": "Initialize VSCodeMM",
+        "enablement": "!vscodemm.initialized"
       }
     ]
   },
