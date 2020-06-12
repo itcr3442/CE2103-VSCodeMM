@@ -1,9 +1,14 @@
 import * as fs from "fs-extra";
+import * as net from "net";
 import * as path from "path";
 import * as vscode from "vscode";
 
 function setContext(key: string, value: boolean): void {
   vscode.commands.executeCommand("setContext", key, value);
+}
+
+function setRunning(running: boolean) {
+  setContext("vscodemm.running", running);
 }
 
 class Server {
@@ -119,8 +124,7 @@ class ServerList implements vscode.TreeDataProvider<ServerTreeItem> {
 }
 
 class ServerTreeItem extends vscode.TreeItem {
-  private workspace;
-  constructor(
+  public constructor(
     public readonly name: string,
     private address: string,
     private port: number,
@@ -129,12 +133,68 @@ class ServerTreeItem extends vscode.TreeItem {
     super(name, vscode.TreeItemCollapsibleState.None);
   }
 
-  get tooltip(): string {
-    return this.label;
-  }
-
   get description(): string {
     return this.address;
+  }
+}
+
+class HeapVisualizer implements vscode.TreeDataProvider<HeapObject> {
+  private buffer: string = "";
+  private objects: HeapObject[];
+
+  private emitter: vscode.EventEmitter<
+    HeapObject | undefined
+  > = new vscode.EventEmitter<HeapObject | undefined>();
+  readonly onDidChangeTreeData: vscode.Event<HeapObject | undefined> = this
+    .emitter.event;
+
+  public constructor() {}
+
+  public getTreeItem(element: HeapObject): vscode.TreeItem {
+    return element;
+  }
+
+  public getChildren(element?: HeapObject): Thenable<HeapObject[]> {
+    if (element === undefined) {
+      return Promise.resolve(this.objects);
+    }
+
+    return Promise.resolve([]);
+  }
+
+  public clear(): void {
+    this.objects = [];
+    this.buffer = "";
+    this.emitter.fire(undefined);
+  }
+
+  public receive(data: string): void {
+    while (true) {
+      let position = data.indexOf("\n");
+      if (position === -1) {
+        break;
+      }
+
+      let command = JSON.parse(this.buffer + data.substring(0, position));
+      data = data.substring(position + 1);
+      this.buffer = "";
+
+      let id = command.id;
+      let locality = command.at;
+
+      console.log(command.op);
+      switch (command.op) {
+      }
+    }
+
+    this.buffer += data;
+    this.emitter.fire(undefined);
+  }
+}
+
+class HeapObject extends vscode.TreeItem {
+  public constructor() {
+    super("Heap object", vscode.TreeItemCollapsibleState.Collapsed);
   }
 }
 
@@ -144,9 +204,12 @@ async function askNewServer(callback: (Server) => void) {
     return;
   }
 
-  const address = await vscode.window.showInputBox({ prompt: "Address: " });
-  if (!address) {
-    return;
+  let address = "";
+  while (net.isIP(address) === 0) {
+    address = await vscode.window.showInputBox({ prompt: "Address: " });
+    if (!address) {
+      return;
+    }
   }
 
   let port: number | undefined = undefined;
@@ -175,6 +238,12 @@ export function activate(cobtext: vscode.ExtensionContext) {
   const serverList = new ServerList();
   vscode.window.registerTreeDataProvider("vscodemm.servers", serverList);
 
+  const heapVisualizer = new HeapVisualizer();
+  vscode.window.registerTreeDataProvider(
+    "vscodemm.heapVisualizer",
+    heapVisualizer
+  );
+
   vscode.commands.registerCommand("vscodemm.setup", () => {
     if (!currentState.isInitialized) {
       fs.copySync(
@@ -189,16 +258,33 @@ export function activate(cobtext: vscode.ExtensionContext) {
 
   vscode.commands.registerCommand("vscodemm.testServer", () =>
     askNewServer((server) => {
-		if (testServer(server)) {
-		  currentState.add(server);
-		  serverList.refresh();
+      if (testServer(server)) {
+        currentState.add(server);
+        serverList.refresh();
 
-		  vscode.window.showInformationMessage('Successful connection. Server added to list.')
-		} else {
-		  vscode.window.showErrorMessage('Connection failed')
-		}
+        vscode.window.showInformationMessage(
+          "Successful connection. Server added to list."
+        );
+      } else {
+        vscode.window.showErrorMessage("Connection failed");
+      }
     })
   );
 
-  setContext("vscodemm.running", false);
+  const debugSocket = net.createServer((debugConnection) => {
+    debugConnection.on("end", () => {
+      setRunning(false);
+      heapVisualizer.clear();
+    });
+
+    debugConnection.on("data", (data) =>
+      heapVisualizer.receive(data.toString("utf-8"))
+    );
+
+    debugConnection.write("{}\n");
+    setRunning(true);
+  });
+
+  debugSocket.listen(39999, "127.0.0.1");
+  setRunning(false);
 }

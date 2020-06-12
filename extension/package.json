@@ -54,8 +54,8 @@
           "when": "vscodemm.initialized && !vscodemm.running"
         },
         {
-          "id": "vscodemm.heap",
-          "name": "Heap objects",
+          "id": "vscodemm.heapVisualizer",
+          "name": "Heap visualizer",
           "when": "vscodemm.running"
         }
       ]
