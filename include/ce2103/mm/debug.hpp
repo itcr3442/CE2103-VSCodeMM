@@ -34,6 +34,9 @@ namespace ce2103::mm::_detail
 		inline debug_chain(debug_chain* previous, std::string key, bool value) noexcept
 		: previous{previous}, key{std::move(key)}, value{std::move(value)}
 		{}
+
+		//! Constructs a node with a pointer value
+		debug_chain(debug_chain* previous, std::string key, void* value) noexcept;
 	};
 
 	//! Base case for debug_log() (see below)

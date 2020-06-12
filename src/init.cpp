@@ -4,6 +4,7 @@
 #include <utility>
 #include <cstdlib>
 #include <cstddef>
+#include <sstream>
 #include <optional>
 #include <iostream>
 
@@ -142,6 +143,23 @@ namespace
 
 namespace ce2103::mm
 {
+	_detail::debug_chain::debug_chain(debug_chain* previous, std::string key, void* value) noexcept
+	: previous{previous}, key{std::move(key)}, value{std::string{}}
+	{
+		std::ostringstream stream;
+		stream << value;
+
+		this->value = stream.str();
+	}
+
+	void _detail::debug_log(debug_chain* last)
+	{
+		if(debug_logger)
+		{
+			debug_logger->put(last);
+		}
+	}
+
 	void initialize_local()
 	{
 		std::call_once(initialization_flag, []()
@@ -215,14 +233,6 @@ namespace ce2103::mm
 			case at::any:
 			default:
 				return *default_manager;
-		}
-	}
-
-	void _detail::debug_log(debug_chain* last)
-	{
-		if(debug_logger)
-		{
-			debug_logger->put(last);
 		}
 	}
 }

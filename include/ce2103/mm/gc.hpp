@@ -396,12 +396,15 @@ namespace ce2103::mm
 		allocation* base = &this->get_base_of(id);
 
 		new(base) allocation{count == 1 && !always_array ? type_of_single : type_of_array};
+		void* first_object = base->get_payload_base();
+
 		_detail::memory_debug_log
 		(
-			"alloc", id, this->get_locality(), "type", demangle(base->get_type())
+			"alloc", id, this->get_locality(), "type", demangle(base->get_type()),
+			"address", first_object
 		);
 
-		return std::make_tuple(id, base, static_cast<T*>(base->get_payload_base()));
+		return std::make_tuple(id, base, static_cast<T*>(first_object));
 	}
 }
 
