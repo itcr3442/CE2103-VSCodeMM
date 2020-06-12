@@ -138,28 +138,43 @@ class ServerTreeItem extends vscode.TreeItem {
   }
 }
 
-class HeapVisualizer implements vscode.TreeDataProvider<HeapObject> {
+class HeapVisualizer implements vscode.TreeDataProvider<HeapTreeItem> {
   private buffer: string = "";
-  private objects: HeapObject[];
+  private objects: HeapObject[] = [];
 
   private emitter: vscode.EventEmitter<
-    HeapObject | undefined
-  > = new vscode.EventEmitter<HeapObject | undefined>();
-  readonly onDidChangeTreeData: vscode.Event<HeapObject | undefined> = this
+    HeapTreeItem | undefined
+  > = new vscode.EventEmitter<HeapTreeItem | undefined>();
+
+  readonly onDidChangeTreeData: vscode.Event<HeapTreeItem | undefined> = this
     .emitter.event;
 
   public constructor() {}
 
-  public getTreeItem(element: HeapObject): vscode.TreeItem {
+  public getTreeItem(element: HeapTreeItem): vscode.TreeItem {
     return element;
   }
 
-  public getChildren(element?: HeapObject): Thenable<HeapObject[]> {
+  public getChildren(element?: HeapTreeItem): Thenable<HeapTreeItem[]> {
     if (element === undefined) {
-      return Promise.resolve(this.objects);
+      return Promise.resolve(
+        this.objects.map(
+          (object) =>
+            new HeapTreeItem(object.address, object.type, false, [
+              new HeapTreeItem("Value", object.value, true, []),
+              new HeapTreeItem("Locality", object.at, true, []),
+              new HeapTreeItem(
+                "References",
+                object.references.toString(),
+                true,
+                []
+              ),
+            ])
+        )
+      );
     }
 
-    return Promise.resolve([]);
+    return Promise.resolve(element.children);
   }
 
   public clear(): void {
@@ -170,20 +185,44 @@ class HeapVisualizer implements vscode.TreeDataProvider<HeapObject> {
 
   public receive(data: string): void {
     while (true) {
-      let position = data.indexOf("\n");
+      const position = data.indexOf("\n");
       if (position === -1) {
         break;
       }
 
-      let command = JSON.parse(this.buffer + data.substring(0, position));
+      const command = JSON.parse(this.buffer + data.substring(0, position));
       data = data.substring(position + 1);
       this.buffer = "";
 
-      let id = command.id;
-      let locality = command.at;
+      const id = command.id;
+      const at = command.at;
 
-      console.log(command.op);
+      if (command.op == "alloc") {
+        this.objects.push(
+          new HeapObject(id, at, command.type, command.address)
+        );
+        continue;
+      }
+
+      const index = this.objects.findIndex(
+        (object) => object.objectID == id && object.at == at
+      );
+      const object = this.objects[index];
+
       switch (command.op) {
+        case "write":
+          object.value = command.value;
+          break;
+
+        case "drop":
+          if (object.drop() == 0) {
+            this.objects.splice(index, 1);
+          }
+          break;
+
+        case "lift":
+          object.lift();
+          break;
       }
     }
 
@@ -192,9 +231,43 @@ class HeapVisualizer implements vscode.TreeDataProvider<HeapObject> {
   }
 }
 
-class HeapObject extends vscode.TreeItem {
-  public constructor() {
-    super("Heap object", vscode.TreeItemCollapsibleState.Collapsed);
+class HeapTreeItem extends vscode.TreeItem {
+  public constructor(
+    readonly label: string,
+    readonly description: string,
+    leaf: boolean,
+    readonly children: HeapTreeItem[]
+  ) {
+    super(
+      label,
+      leaf
+        ? vscode.TreeItemCollapsibleState.None
+        : vscode.TreeItemCollapsibleState.Collapsed
+    );
+  }
+}
+
+class HeapObject {
+  private _references: number = 1;
+  public value: string = "";
+
+  public constructor(
+    readonly objectID: number,
+    readonly at: string,
+    readonly type: string,
+    readonly address: string
+  ) {}
+
+  get references(): number {
+    return this._references;
+  }
+
+  public drop(): number {
+    return --this._references;
+  }
+
+  public lift(): void {
+    ++this._references;
   }
 }
 
