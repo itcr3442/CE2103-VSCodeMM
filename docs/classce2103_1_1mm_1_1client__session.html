@@ -104,9 +104,9 @@ Public Member Functions</h2></td></tr>
 <tr class="memitem:a98fddc217edd001f5dceeaa22fbc411b"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classce2103_1_1mm_1_1client__session.html#a98fddc217edd001f5dceeaa22fbc411b">finalize</a> ()</td></tr>
 <tr class="memdesc:a98fddc217edd001f5dceeaa22fbc411b"><td class="mdescLeft">&#160;</td><td class="mdescRight">Terminates the session. Returns whether this was done cleanly and without any leaks.  <a href="classce2103_1_1mm_1_1client__session.html#a98fddc217edd001f5dceeaa22fbc411b">More...</a><br /></td></tr>
 <tr class="separator:a98fddc217edd001f5dceeaa22fbc411b"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a61df66453008069f818836ec261aa8ce"><td class="memItemLeft" align="right" valign="top">std::optional&lt; std::size_t &gt;&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classce2103_1_1mm_1_1client__session.html#a61df66453008069f818836ec261aa8ce">allocate</a> (std::size_t part_size, std::size_t parts, std::size_t remainder)</td></tr>
-<tr class="memdesc:a61df66453008069f818836ec261aa8ce"><td class="mdescLeft">&#160;</td><td class="mdescRight">Requests a new piecewise allocation to the server. A number of sequential IDs are allocated according to the part-remainder relations.  <a href="classce2103_1_1mm_1_1client__session.html#a61df66453008069f818836ec261aa8ce">More...</a><br /></td></tr>
-<tr class="separator:a61df66453008069f818836ec261aa8ce"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aef9a1b326487d6367595b518526e09ad"><td class="memItemLeft" align="right" valign="top">std::optional&lt; std::size_t &gt;&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classce2103_1_1mm_1_1client__session.html#aef9a1b326487d6367595b518526e09ad">allocate</a> (std::size_t part_size, std::size_t parts, std::size_t remainder, const char *type)</td></tr>
+<tr class="memdesc:aef9a1b326487d6367595b518526e09ad"><td class="mdescLeft">&#160;</td><td class="mdescRight">Requests a new piecewise allocation to the server. A number of sequential IDs are allocated according to the part-remainder relations.  <a href="classce2103_1_1mm_1_1client__session.html#aef9a1b326487d6367595b518526e09ad">More...</a><br /></td></tr>
+<tr class="separator:aef9a1b326487d6367595b518526e09ad"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a9992880b8cbfe9d9baa5c88378892f14"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classce2103_1_1mm_1_1client__session.html#a9992880b8cbfe9d9baa5c88378892f14">lift</a> (std::size_t id)</td></tr>
 <tr class="memdesc:a9992880b8cbfe9d9baa5c88378892f14"><td class="mdescLeft">&#160;</td><td class="mdescRight">Attempts to increment the reference count of a remote object.  <a href="classce2103_1_1mm_1_1client__session.html#a9992880b8cbfe9d9baa5c88378892f14">More...</a><br /></td></tr>
 <tr class="separator:a9992880b8cbfe9d9baa5c88378892f14"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -184,8 +184,8 @@ Additional Inherited Members</h2></td></tr>
 </div>
 </div>
 <h2 class="groupheader">Member Function Documentation</h2>
-<a id="a61df66453008069f818836ec261aa8ce"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a61df66453008069f818836ec261aa8ce">&#9670;&nbsp;</a></span>allocate()</h2>
+<a id="aef9a1b326487d6367595b518526e09ad"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aef9a1b326487d6367595b518526e09ad">&#9670;&nbsp;</a></span>allocate()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -206,7 +206,13 @@ Additional Inherited Members</h2></td></tr>
           <td class="paramkey"></td>
           <td></td>
           <td class="paramtype">std::size_t&#160;</td>
-          <td class="paramname"><em>remainder</em>&#160;</td>
+          <td class="paramname"><em>remainder</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>type</em>&#160;</td>
         </tr>
         <tr>
           <td></td>
@@ -222,7 +228,8 @@ Additional Inherited Members</h2></td></tr>
   <table class="params">
     <tr><td class="paramname">part_size</td><td>size of each non-remainder part </td></tr>
     <tr><td class="paramname">parts</td><td>number of part_size parts </td></tr>
-    <tr><td class="paramname">remainder</td><td>size of the last allocation</td></tr>
+    <tr><td class="paramname">remainder</td><td>size of the last allocation </td></tr>
+    <tr><td class="paramname">type</td><td>object type name</td></tr>
   </table>
   </dd>
 </dl>
