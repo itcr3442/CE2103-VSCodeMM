@@ -17,6 +17,25 @@
   ],
   "main": "./out/extension.js",
   "contributes": {
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "vscodemm.setup",
+          "when": "!vscodemm.initialized"
+        },
+        {
+          "command": "vscodemm.testServer",
+          "when": "false"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "vscodemm.testServer",
+          "when": "view == vscodemm.servers",
+          "group": "navigation"
+        }
+      ]
+    },
     "viewsContainers": {
       "activitybar": [
         {
@@ -46,6 +65,11 @@
         "command": "vscodemm.setup",
         "title": "Initialize VSCodeMM",
         "enablement": "!vscodemm.initialized"
+      },
+      {
+        "command": "vscodemm.testServer",
+        "title": "Test a new server",
+        "enablement": "vscodemm.initialized"
       }
     ]
   },

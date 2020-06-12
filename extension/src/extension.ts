@@ -6,15 +6,18 @@ function setContext(key: string, value: boolean): void {
   vscode.commands.executeCommand("setContext", key, value);
 }
 
-interface SavedServer {
-  name: string;
-  address: string;
-  secret: string;
+class Server {
+  public constructor(
+    readonly name: string,
+    readonly address: string,
+    readonly port: number,
+    readonly secret: string
+  ) {}
 }
 
 class WorkspaceState {
   private initialized: boolean = false;
-  private servers: SavedServer[] = [];
+  private servers: Server[] = [];
 
   public constructor() {
     const base = this.getPrivateDirectoryPath();
@@ -27,23 +30,39 @@ class WorkspaceState {
     }
   }
 
+  get isInitialized(): boolean {
+    return this.initialized;
+  }
+
   public setInitialized(initialized: boolean): void {
     this.initialized = initialized;
     setContext("vscodemm.initialized", initialized);
   }
 
+  public add(server: Server): void {
+    this.servers.push(server);
+    this.save();
+  }
+
   public save(): void {
-    let contents = JSON.stringify({
+    const contents = JSON.stringify({
       initialized: this.initialized,
       servers: this.servers,
     });
     fs.writeFileSync(this.getPath(), contents);
   }
 
-  public getServers(): Server[] {
+  public getServers(): ServerTreeItem[] {
     let servers = [];
     for (let server of this.servers) {
-      servers.push(new Server(server.name, server.address, server.secret));
+      servers.push(
+        new ServerTreeItem(
+          server.name,
+          server.address,
+          server.port,
+          server.secret
+        )
+      );
     }
 
     return servers;
@@ -73,27 +92,38 @@ class WorkspaceState {
 
 let currentState = new WorkspaceState();
 
-class ServerList implements vscode.TreeDataProvider<Server> {
-  constructor() {}
+class ServerList implements vscode.TreeDataProvider<ServerTreeItem> {
+  private emitter: vscode.EventEmitter<
+    ServerTreeItem | undefined
+  > = new vscode.EventEmitter<ServerTreeItem | undefined>();
+  readonly onDidChangeTreeData: vscode.Event<ServerTreeItem | undefined> = this
+    .emitter.event;
 
-  getTreeItem(element: Server): vscode.TreeItem {
+  public constructor() {}
+
+  public getTreeItem(element: ServerTreeItem): vscode.TreeItem {
     return element;
   }
 
-  getChildren(element?: Server): Thenable<Server[]> {
+  public getChildren(element?: ServerTreeItem): Thenable<ServerTreeItem[]> {
     if (element === undefined) {
       return Promise.resolve(currentState.getServers());
     }
 
     return Promise.resolve([]);
   }
+
+  public refresh(): void {
+    this.emitter.fire(undefined);
+  }
 }
 
-class Server extends vscode.TreeItem {
+class ServerTreeItem extends vscode.TreeItem {
   private workspace;
   constructor(
     public readonly name: string,
     private address: string,
+    private port: number,
     private secret: string
   ) {
     super(name, vscode.TreeItemCollapsibleState.None);
@@ -106,36 +136,69 @@ class Server extends vscode.TreeItem {
   get description(): string {
     return this.address;
   }
+}
 
-  iconPath = {
-    light: path.join(
-      __filename,
-      "..",
-      "..",
-      "resources",
-      "light",
-      "dependency.svg"
-    ),
-    dark: path.join(
-      __filename,
-      "..",
-      "..",
-      "resources",
-      "dark",
-      "dependency.svg"
-    ),
-  };
+async function askNewServer(callback: (Server) => void) {
+  const name = await vscode.window.showInputBox({ prompt: "Name: " });
+  if (!name) {
+    return;
+  }
+
+  const address = await vscode.window.showInputBox({ prompt: "Address: " });
+  if (!address) {
+    return;
+  }
+
+  let port: number | undefined = undefined;
+  do {
+    const portString = await vscode.window.showInputBox({ prompt: "Port: " });
+    if (!portString) {
+      return;
+    }
+
+    port = parseInt(portString);
+  } while (port === undefined || isNaN(port) || port < 1 || port > 65535);
+
+  const secret = await vscode.window.showInputBox({ prompt: "Password: " });
+  if (!secret) {
+    return;
+  }
+
+  callback(new Server(name, address, port, secret));
+}
+
+function testServer(server: Server): boolean {
+  return true;
 }
 
 export function activate(cobtext: vscode.ExtensionContext) {
-  vscode.window.registerTreeDataProvider("vscodemm.servers", new ServerList());
+  const serverList = new ServerList();
+  vscode.window.registerTreeDataProvider("vscodemm.servers", serverList);
 
   vscode.commands.registerCommand("vscodemm.setup", () => {
-    fs.copySync("vscodemm/", path.join(vscode.workspace.rootPath, "vscodemm/"));
+    if (!currentState.isInitialized) {
+      fs.copySync(
+        "vscodemm/",
+        path.join(vscode.workspace.rootPath, "vscodemm/")
+      );
 
-    currentState.setInitialized(true);
-    currentState.save();
+      currentState.setInitialized(true);
+      currentState.save();
+    }
   });
+
+  vscode.commands.registerCommand("vscodemm.testServer", () =>
+    askNewServer((server) => {
+		if (testServer(server)) {
+		  currentState.add(server);
+		  serverList.refresh();
+
+		  vscode.window.showInformationMessage('Successful connection. Server added to list.')
+		} else {
+		  vscode.window.showErrorMessage('Connection failed')
+		}
+    })
+  );
 
   setContext("vscodemm.running", false);
 }
