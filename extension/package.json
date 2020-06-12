@@ -19,14 +19,14 @@
     "viewsContainers": {
       "activitybar": [
         {
-          "id": "heap-visualizer",
-          "title": "Heap Visualizer",
+          "id": "vscodemm",
+          "title": "Memory Manager",
           "icon": "resources/dark/dependency.svg"
         }
       ]
     },
     "views": {
-      "heap-visualizer": [
+      "vscodemm": [
         {
           "id": "vscodemm.servers",
           "name": "Servers"
