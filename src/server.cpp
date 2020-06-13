@@ -222,7 +222,9 @@ namespace
 		std::optional<std::size_t> first_id;
 		auto allocate_next = [&, this](std::size_t size)
 		{
+			[[maybe_unused]]
 			auto [id, resource, base] = gc.allocate_of<char>(size);
+
 			if(!first_id)
 			{
 				first_id = id;

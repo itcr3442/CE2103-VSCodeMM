@@ -9,4 +9,5 @@ script:
   - rm -f build bw-output && mkdir build && cd build && cmake ..
   - build-wrapper-linux-x86-64 --out-dir ../bw-output make all && cd ..
   - sonar-scanner -Dsonar.cfamily.build-wrapper-output=bw-output
-  - build/run_tests
+  - build/tests/run_mm_tests
+  - build/deps/common/tests/run_tests

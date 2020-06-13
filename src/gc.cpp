@@ -102,7 +102,9 @@ namespace ce2103::mm
 			throw std::invalid_argument{"ID is unassigned"};
 		}
 
+		[[maybe_unused]]
 		auto [count, base] = *count_base;
+
 		return *base;
 	}
 

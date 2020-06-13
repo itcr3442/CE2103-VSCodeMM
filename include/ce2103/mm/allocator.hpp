@@ -181,6 +181,8 @@ namespace ce2103::mm
 	unsafe_ptr<T> allocator<T>::allocate(std::size_t count)
 	{
 		auto& owner = memory_manager::get_default(at::any);
+
+		[[maybe_unused]]
 		auto [id, resource, base] = owner.allocate_of<T>(count);
 
 		return unsafe_ptr<T>{base, id, owner.get_locality()};
