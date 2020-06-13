@@ -301,6 +301,20 @@ namespace ce2103::mm
 						return *this->pointer.data;
 					}
 
+					//! Forward compare-for-equality
+					template<typename U>
+					inline auto operator==(U&& other) const
+					{
+						return static_cast<T&>(std::move(*this)) == other;
+					}
+
+					//! Forward compare-for-inequality
+					template<typename U>
+					inline auto operator!=(U&& other) const
+					{
+						return static_cast<T&>(std::move(*this)) != other;
+					}
+
 				private:
 					const VSPtr<T>& pointer; //!< Dereferenced pointer
 

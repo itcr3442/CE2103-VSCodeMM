@@ -6,6 +6,7 @@ find_package(Doxygen)
 
 add_subdirectory(src)
 add_subdirectory(deps)
+add_subdirectory(tests)
 add_subdirectory(examples)
 
 if(DOXYGEN_FOUND)
