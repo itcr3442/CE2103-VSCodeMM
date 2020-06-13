@@ -1,0 +1,12 @@
+dist: bionic
+language: cpp
+addons:
+  sonarcloud:
+    organization: "itcr3442"
+    token:
+      secure: "yUIXs+eFETXPYIZePoX2uF1nhJkeYYjdfmc+F2epcChrSdaEaRPGPNb3nn8WxOUuKfUfcrg8WW2sodTCu5lEyXBWPSojB7rPqo5eQy+bP0Tqw0S0Z8tm9Tip+rpQ0/YQN1+t9k8UeR0Gy6HM8ofRqGsIuMfpl/JxY40hC0bMpeM7wygSmNSN3gMMrdabVAtSQJNeUJkjYIBqbWSQVE5k1/98SnayMQgzcW0ILRQp14DqCA7UgRkFHE60cZk52BWARcanTm7PkjEuYDkb+7yd3Iot97vmVq+dHbcQN96rq1Ul4lJQrUTw9tSqff57hMfBZxGE8C7vxI3C8P+6gWZ+dRUnjkIfoZoZGjO4U2hLGWJUPG1YK0t5Wb9t5XaCd0J9YDcQ9nJiIb4ggGq8YKMxWACdL5mccyNPkRF14NbGHBwEaBbelbeVexP6cpaKDraZd3DLpxaUHYEiKpsYvHdvjiBePI4YGTw4tKN7luXiFoS409QrGp7vDD84RluIsJd0kdGjLW6Cj5ZkWOuS61PjYU3/At2iJgcokTOqS9mKq/nB7bEqFdIzzxQkgscxCrSEtHOEYOcFLOrBvQSKdLlTnywbbsLQreClbguTFLXhBPKdnCeIbpsxu+8oO0qD2qENL1CVKWVjlO2semOzx+col5rQU5DLD0nb0YCbIMSwC+0="
+script:
+  - rm -f build bw-output && mkdir build && cd build && cmake ..
+  - build-wrapper-linux-x86-64 --out-dir ../bw-output make all && cd ..
+  - sonar-scanner -Dsonar.cfamily.build-wrapper-output=bw-output
+  - build/run_tests
