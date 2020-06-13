@@ -5,6 +5,7 @@
 #include <cstdlib>
 #include <cstddef>
 #include <sstream>
+#include <fstream>
 #include <optional>
 #include <iostream>
 
@@ -111,9 +112,17 @@ namespace
 		using ce2103::socket, ce2103::ip_endpoint;
 
 		const char* endpoint_string = std::getenv("MM_DEBUG_TARGET");
+
+		std::string address_file_contents;
 		if(endpoint_string == nullptr)
 		{
-			return;
+			std::ifstream stream{".vscode/vscodemm.sockaddr"};
+			if(!stream || !std::getline(stream, address_file_contents))
+			{
+				return;
+			}
+
+			endpoint_string = address_file_contents.c_str();
 		}
 
 		socket client_socket;
