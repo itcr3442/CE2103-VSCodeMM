@@ -367,20 +367,36 @@ export function activate(cobtext: vscode.ExtensionContext) {
     )
   );
 
+  const addressPath = path.join(
+    vscode.workspace.rootPath,
+    ".vscode",
+    "vscodemm.sockaddr"
+  );
+
   const debugSocket = net.createServer((debugConnection) => {
     debugConnection.on("end", () => {
       setRunning(false);
       heapVisualizer.clear();
+      publishAddress();
     });
 
     debugConnection.on("data", (data) =>
       heapVisualizer.receive(data.toString("utf-8"))
     );
 
+    fs.unlinkSync(addressPath);
     debugConnection.write("{}\n");
+
     setRunning(true);
   });
 
-  debugSocket.listen(39999, "127.0.0.1");
+  function publishAddress() {
+    fs.writeFileSync(
+      addressPath,
+      "127.0.0.1:" + (<any>debugSocket.address()).port.toString()
+    );
+  }
+
+  debugSocket.listen(0, "127.0.0.1", () => publishAddress());
   setRunning(false);
 }
