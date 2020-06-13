@@ -51,6 +51,11 @@ class WorkspaceState {
     this.save();
   }
 
+  public remove(server: Server): void {
+    this.servers.splice(this.servers.indexOf(server), 1);
+    this.save();
+  }
+
   public save(): void {
     const contents = JSON.stringify({
       initialized: this.initialized,
@@ -59,20 +64,8 @@ class WorkspaceState {
     fs.writeFileSync(this.getPath(), contents);
   }
 
-  public getServers(): ServerTreeItem[] {
-    let servers = [];
-    for (let server of this.servers) {
-      servers.push(
-        new ServerTreeItem(
-          server.name,
-          server.address,
-          server.port,
-          server.secret
-        )
-      );
-    }
-
-    return servers;
+  public getServers(): Server[] {
+    return this.servers;
   }
 
   private load(): boolean {
@@ -103,8 +96,11 @@ class ServerList implements vscode.TreeDataProvider<ServerTreeItem> {
   private emitter: vscode.EventEmitter<
     ServerTreeItem | undefined
   > = new vscode.EventEmitter<ServerTreeItem | undefined>();
+
   readonly onDidChangeTreeData: vscode.Event<ServerTreeItem | undefined> = this
     .emitter.event;
+
+  public selected: Server | undefined = undefined;
 
   public constructor() {}
 
@@ -114,7 +110,11 @@ class ServerList implements vscode.TreeDataProvider<ServerTreeItem> {
 
   public getChildren(element?: ServerTreeItem): Thenable<ServerTreeItem[]> {
     if (element === undefined) {
-      return Promise.resolve(currentState.getServers());
+      return Promise.resolve(
+        currentState
+          .getServers()
+          .map((server) => new ServerTreeItem(server, server === this.selected))
+      );
     }
 
     return Promise.resolve([]);
@@ -123,20 +123,28 @@ class ServerList implements vscode.TreeDataProvider<ServerTreeItem> {
   public refresh(): void {
     this.emitter.fire(undefined);
   }
+
+  public remove(server: Server): void {
+    if (this.selected === server) {
+      this.selected = undefined;
+    }
+
+    currentState.remove(server);
+    this.refresh();
+  }
 }
 
 class ServerTreeItem extends vscode.TreeItem {
-  public constructor(
-    public readonly name: string,
-    private address: string,
-    private port: number,
-    private secret: string
-  ) {
-    super(name, vscode.TreeItemCollapsibleState.None);
+  public constructor(readonly server: Server, private selected: boolean) {
+    super(server.name, vscode.TreeItemCollapsibleState.None);
   }
 
   get description(): string {
-    return this.address;
+    return `${this.server.address}:${this.server.port}`;
+  }
+
+  get contextValue(): string {
+    return this.selected ? "selected" : "unselected";
   }
 }
 
@@ -199,32 +207,41 @@ class HeapVisualizer implements vscode.TreeDataProvider<HeapTreeItem> {
       const id = command.id;
       const at = command.at;
 
-      if (command.op == "alloc") {
+      if (command.op == "connect") {
+        if (command.success) {
+          vscode.window.showInformationMessage(
+            "Inferior connected to remote memory server."
+          );
+        } else {
+          vscode.window.showErrorMessage(
+            "Inferior failed to connect to remote memory server."
+          );
+        }
+      } else if (command.op == "alloc") {
         this.objects.push(
           new HeapObject(id, at, command.type, command.address)
         );
-        continue;
-      }
+      } else {
+        const index = this.objects.findIndex(
+          (object) => object.objectID == id && object.at == at
+        );
+        const object = this.objects[index];
 
-      const index = this.objects.findIndex(
-        (object) => object.objectID == id && object.at == at
-      );
-      const object = this.objects[index];
+        switch (command.op) {
+          case "write":
+            object.value = command.value;
+            break;
 
-      switch (command.op) {
-        case "write":
-          object.value = command.value;
-          break;
+          case "drop":
+            if (object.drop() == 0) {
+              this.objects.splice(index, 1);
+            }
+            break;
 
-        case "drop":
-          if (object.drop() == 0) {
-            this.objects.splice(index, 1);
-          }
-          break;
-
-        case "lift":
-          object.lift();
-          break;
+          case "lift":
+            object.lift();
+            break;
+        }
       }
     }
 
@@ -345,6 +362,10 @@ export function activate(cobtext: vscode.ExtensionContext) {
 
       currentState.setInitialized(true);
       currentState.save();
+
+      vscode.window.showInformationMessage(
+        "Initialized VSCode Memory Manager."
+      );
     }
   });
 
@@ -367,6 +388,27 @@ export function activate(cobtext: vscode.ExtensionContext) {
     )
   );
 
+  vscode.commands.registerCommand(
+    "vscodemm.selectServer",
+    (treeItem: ServerTreeItem) => {
+      serverList.selected = treeItem.server;
+      serverList.refresh();
+    }
+  );
+
+  vscode.commands.registerCommand(
+    "vscodemm.unselectServer",
+    (treeItem: ServerTreeItem) => {
+      serverList.selected = undefined;
+      serverList.refresh();
+    }
+  );
+
+  vscode.commands.registerCommand(
+    "vscodemm.removeServer",
+    (treeItem: ServerTreeItem) => serverList.remove(treeItem.server)
+  );
+
   const addressPath = path.join(
     vscode.workspace.rootPath,
     ".vscode",
@@ -378,6 +420,8 @@ export function activate(cobtext: vscode.ExtensionContext) {
       setRunning(false);
       heapVisualizer.clear();
       publishAddress();
+
+      vscode.window.showInformationMessage("Inferior process terminated.");
     });
 
     debugConnection.on("data", (data) =>
@@ -385,8 +429,19 @@ export function activate(cobtext: vscode.ExtensionContext) {
     );
 
     fs.unlinkSync(addressPath);
-    debugConnection.write("{}\n");
 
+    let options: any = {};
+    const selected = serverList.selected;
+    if (serverList.selected !== undefined) {
+      options.server = `${selected.address}:${selected.port}`;
+      options.psk = selected.secret;
+    }
+
+    vscode.window.showInformationMessage(
+      "Inferior connected to heap visualizer."
+    );
+
+    debugConnection.write(JSON.stringify(options) + "\n");
     setRunning(true);
   });
 

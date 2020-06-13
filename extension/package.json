@@ -26,6 +26,18 @@
         {
           "command": "vscodemm.testServer",
           "when": "false"
+        },
+        {
+          "command": "vscodemm.selectServer",
+          "when": "false"
+        },
+        {
+          "command": "vscodemm.unselectServer",
+          "when": "false"
+        },
+        {
+          "command": "vscodemm.removeServer",
+          "when": "false"
         }
       ],
       "view/title": [
@@ -33,6 +45,22 @@
           "command": "vscodemm.testServer",
           "when": "view == vscodemm.servers",
           "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "vscodemm.selectServer",
+          "when": "view == vscodemm.servers && viewItem == unselected",
+          "group": "inline"
+        },
+        {
+          "command": "vscodemm.unselectServer",
+          "when": "view == vscodemm.servers && viewItem == selected",
+          "group": "inline"
+        },
+        {
+          "command": "vscodemm.removeServer",
+          "when": "view == vscodemm.servers"
         }
       ]
     },
@@ -69,6 +97,21 @@
       {
         "command": "vscodemm.testServer",
         "title": "Test a new server",
+        "enablement": "vscodemm.initialized"
+      },
+      {
+        "command": "vscodemm.selectServer",
+        "title": "Select",
+        "enablement": "vscodemm.initialized"
+      },
+      {
+        "command": "vscodemm.unselectServer",
+        "title": "Unselect",
+        "enablement": "vscodemm.initialized"
+      },
+      {
+        "command": "vscodemm.removeServer",
+        "title": "Remove",
         "enablement": "vscodemm.initialized"
       }
     ]
