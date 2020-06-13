@@ -3,6 +3,8 @@ import * as net from "net";
 import * as path from "path";
 import * as vscode from "vscode";
 
+let md5 = require("md5");
+
 function setContext(key: string, value: boolean): void {
   vscode.commands.executeCommand("setContext", key, value);
 }
@@ -303,8 +305,25 @@ async function askNewServer(callback: (Server) => void) {
   callback(new Server(name, address, port, secret));
 }
 
-function testServer(server: Server): boolean {
-  return true;
+function testServer(server: Server): Promise<boolean> {
+  return new Promise<boolean>((resolve, reject) => {
+    const client = new net.Socket();
+
+    client.on("data", (data) => {
+      let succeeded = JSON.parse(data.toString("utf-8")) === true;
+      client.end();
+      resolve(succeeded);
+    });
+
+    client.on("error", () => {
+      resolve(false);
+    });
+
+    client.connect({ port: server.port, host: server.address }, () => {
+      const hash = md5(server.secret);
+      client.write(JSON.stringify({ auth: [hash] }) + "\n");
+    });
+  });
 }
 
 export function activate(cobtext: vscode.ExtensionContext) {
@@ -330,34 +349,54 @@ export function activate(cobtext: vscode.ExtensionContext) {
   });
 
   vscode.commands.registerCommand("vscodemm.testServer", () =>
-    askNewServer((server) => {
-      if (testServer(server)) {
-        currentState.add(server);
-        serverList.refresh();
+    askNewServer((server) =>
+      testServer(server).then((success) => {
+        if (success) {
+          currentState.add(server);
+          serverList.refresh();
 
-        vscode.window.showInformationMessage(
-          "Successful connection. Server added to list."
-        );
-      } else {
-        vscode.window.showErrorMessage("Connection failed");
-      }
-    })
+          vscode.window.showInformationMessage(
+            "Successful connection. Server added to list."
+          );
+        } else {
+          vscode.window.showErrorMessage(
+            "Connection to remote memory server failed"
+          );
+        }
+      })
+    )
+  );
+
+  const addressPath = path.join(
+    vscode.workspace.rootPath,
+    ".vscode",
+    "vscodemm.sockaddr"
   );
 
   const debugSocket = net.createServer((debugConnection) => {
     debugConnection.on("end", () => {
       setRunning(false);
       heapVisualizer.clear();
+      publishAddress();
     });
 
     debugConnection.on("data", (data) =>
       heapVisualizer.receive(data.toString("utf-8"))
     );
 
+    fs.unlinkSync(addressPath);
     debugConnection.write("{}\n");
+
     setRunning(true);
   });
 
-  debugSocket.listen(39999, "127.0.0.1");
+  function publishAddress() {
+    fs.writeFileSync(
+      addressPath,
+      "127.0.0.1:" + (<any>debugSocket.address()).port.toString()
+    );
+  }
+
+  debugSocket.listen(0, "127.0.0.1", () => publishAddress());
   setRunning(false);
 }
