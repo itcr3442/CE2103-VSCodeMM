@@ -343,6 +343,46 @@ function testServer(server: Server): Promise<boolean> {
   });
 }
 
+async function patchMainFile(): Promise<void> {
+  let paths = await vscode.workspace.findFiles("**/main.cpp");
+  if (paths.length === 0) {
+    vscode.window.showInformationMessage("File main.cpp was not found.");
+    return;
+  }
+
+  const mainFilePath = paths[0].fsPath;
+
+  let contents = await fs.readFile(mainFilePath, "utf-8");
+  contents =
+    '#include "ce2103/mm/init.hpp"\n#include "ce2103/mm/vsptr.hpp"\n' +
+    contents;
+
+  let signaturePosition = contents.indexOf("int main(");
+  let openingBracket: number;
+
+  if (signaturePosition !== -1) {
+    openingBracket = contents.indexOf("{", signaturePosition);
+    if (openingBracket === -1) {
+      signaturePosition = -1;
+    }
+  }
+
+  if (signaturePosition === -1) {
+    signaturePosition = contents.length + 1;
+    contents += "\nint main(int argc, const char* const argv[])\n{\n}\n";
+    openingBracket = contents.length - 4; // See the previous string
+  }
+
+  const before = contents.slice(0, openingBracket + 1);
+  const after = contents.slice(openingBracket + 1);
+
+  contents =
+    before +
+    "\n\tusing ce2103::mm::VSPtr;\n\tce2103::mm::initialize();\n" +
+    after;
+  await fs.writeFile(mainFilePath, contents);
+}
+
 export function activate(cobtext: vscode.ExtensionContext) {
   const serverList = new ServerList();
   vscode.window.registerTreeDataProvider("vscodemm.servers", serverList);
@@ -363,8 +403,10 @@ export function activate(cobtext: vscode.ExtensionContext) {
       currentState.setInitialized(true);
       currentState.save();
 
-      vscode.window.showInformationMessage(
-        "Initialized VSCode Memory Manager."
+      patchMainFile().then(() =>
+        vscode.window.showInformationMessage(
+          "Initialized and imported VSCode Memory Manager."
+        )
       );
     }
   });
