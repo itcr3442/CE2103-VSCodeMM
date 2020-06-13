@@ -343,11 +343,11 @@ function testServer(server: Server): Promise<boolean> {
   });
 }
 
-async function patchMainFile(): Promise<void> {
+async function patchMainFile(): Promise<string | undefined> {
   let paths = await vscode.workspace.findFiles("**/main.cpp");
   if (paths.length === 0) {
     vscode.window.showInformationMessage("File main.cpp was not found.");
-    return;
+    return undefined;
   }
 
   const mainFilePath = paths[0].fsPath;
@@ -381,6 +381,35 @@ async function patchMainFile(): Promise<void> {
     "\n\tusing ce2103::mm::VSPtr;\n\tce2103::mm::initialize();\n" +
     after;
   await fs.writeFile(mainFilePath, contents);
+
+  return mainFilePath;
+}
+
+async function generateCMakeLists(
+  mainFilePath: string | undefined
+): Promise<void> {
+  const cmakePath = path.join(vscode.workspace.rootPath, "CMakeLists.txt");
+  if (mainFilePath !== undefined && !fs.existsSync(cmakePath)) {
+    const relativeMainPath = path.relative(
+      vscode.workspace.rootPath,
+      mainFilePath
+    );
+
+    await fs.writeFile(
+      cmakePath,
+      `
+cmake_minimum_required(VERSION 3.10.0 FATAL_ERROR)
+project("My project")
+
+find_package(Threads REQUIRED)
+
+add_executable(main ${relativeMainPath})
+target_include_directories(main PRIVATE vscodemm)
+target_link_directories(main PRIVATE vscodemm)
+target_compile_features(main PRIVATE cxx_std_17)
+target_link_libraries(main ce2103_vscodemm)`
+    );
+  }
 }
 
 export function activate(cobtext: vscode.ExtensionContext) {
@@ -403,9 +432,11 @@ export function activate(cobtext: vscode.ExtensionContext) {
       currentState.setInitialized(true);
       currentState.save();
 
-      patchMainFile().then(() =>
-        vscode.window.showInformationMessage(
-          "Initialized and imported VSCode Memory Manager."
+      patchMainFile().then((mainPath) =>
+        generateCMakeLists(mainPath).then(() =>
+          vscode.window.showInformationMessage(
+            "Initialized and imported VSCode Memory Manager."
+          )
         )
       );
     }
